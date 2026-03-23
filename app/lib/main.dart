@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
-import '../providers/auth_provider.dart';
-import '../providers/docker_provider.dart';
-import '../screens/login_screen.dart';
-import '../screens/dashboard_screen.dart';
+import 'theme/app_theme.dart';
+import 'providers/auth_provider.dart';
+import 'providers/docker_provider.dart';
+import 'providers/sites_provider.dart';
+import 'providers/github_provider.dart';
+import 'screens/login_screen.dart';
+import 'screens/sites_screen.dart';
 
 void main() {
   runApp(
@@ -13,6 +15,8 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => DockerProvider()),
+        ChangeNotifierProvider(create: (_) => SitesProvider()),
+        ChangeNotifierProvider(create: (_) => GitHubProvider()),
       ],
       child: const OndesApp(),
     ),
@@ -38,7 +42,7 @@ class OndesApp extends StatelessWidget {
             );
           }
           return auth.isAuthenticated
-              ? const DashboardScreen()
+              ? const SitesScreen()
               : const LoginScreen();
         },
       ),

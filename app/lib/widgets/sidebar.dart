@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../screens/sites_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/docker_manager_screen.dart';
 import '../screens/terminal_screen.dart';
@@ -12,6 +13,7 @@ class Sidebar extends StatelessWidget {
   const Sidebar({super.key, required this.selectedIndex});
 
   static const _items = [
+    _NavItem(icon: Icons.web_outlined,          label: 'Mes Sites'),
     _NavItem(icon: Icons.dashboard_outlined,    label: 'Dashboard'),
     _NavItem(icon: Icons.inventory_2_outlined,  label: 'Containers'),
     _NavItem(icon: Icons.terminal_outlined,     label: 'Terminal'),
@@ -82,9 +84,10 @@ class Sidebar extends StatelessWidget {
     if (index == selectedIndex) return;
     final Widget screen;
     switch (index) {
-      case 0: screen = const DashboardScreen();      break;
-      case 1: screen = const DockerManagerScreen();  break;
-      case 2: screen = const TerminalScreen();       break;
+      case 0: screen = const SitesScreen();         break;
+      case 1: screen = const DashboardScreen();      break;
+      case 2: screen = const DockerManagerScreen();  break;
+      case 3: screen = const TerminalScreen();       break;
       default: return;
     }
     Navigator.of(context).pushReplacement(
