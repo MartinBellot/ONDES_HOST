@@ -50,12 +50,19 @@ def _strip_platform_services(compose_path: str, app_id: int) -> tuple[str, list[
     If yaml is unavailable or parsing fails, returns the original filename unchanged.
     """
     if not _YAML_AVAILABLE:
+        _broadcast(
+            app_id,
+            '⚠️  pyyaml non disponible — impossible de supprimer automatiquement '
+            'les services nginx/certbot du compose. Installez pyyaml dans le venv.',
+            'warning',
+        )
         return os.path.basename(compose_path), []
 
     try:
         with open(compose_path) as f:
             data = yaml.safe_load(f)
-    except Exception:
+    except Exception as exc:
+        _broadcast(app_id, f'⚠️  Lecture du compose échouée ({exc}) — bypass ignoré.', 'warning')
         return os.path.basename(compose_path), []
 
     if not isinstance(data, dict) or 'services' not in data:
@@ -91,8 +98,12 @@ def _strip_platform_services(compose_path: str, app_id: int) -> tuple[str, list[
     data['services'] = services
     bypass_filename  = 'docker-compose.ondes.yml'
     bypass_path      = os.path.join(os.path.dirname(compose_path), bypass_filename)
-    with open(bypass_path, 'w') as f:
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+    try:
+        with open(bypass_path, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+    except Exception as exc:
+        _broadcast(app_id, f'⚠️  Écriture du compose modifié échouée ({exc}) — compose original utilisé.', 'warning')
+        return os.path.basename(compose_path), []
 
     return bypass_filename, removed
 

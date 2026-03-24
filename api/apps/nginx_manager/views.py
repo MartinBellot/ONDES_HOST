@@ -58,10 +58,10 @@ class NginxVhostListCreateView(generics.ListCreateAPIView):
             vhost.delete()
             return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response(
-            NginxVhostSerializer(vhost).data,
-            status=status.HTTP_201_CREATED,
-        )
+        read_data = NginxVhostSerializer(vhost).data
+        if result.get('message'):
+            read_data['warning'] = result['message']
+        return Response(read_data, status=status.HTTP_201_CREATED)
 
 
 class NginxVhostDetailView(generics.RetrieveUpdateDestroyAPIView):

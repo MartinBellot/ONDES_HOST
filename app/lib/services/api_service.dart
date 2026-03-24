@@ -380,5 +380,15 @@ class ApiService {
     final res = await _dio.get('/nginx/vhosts/$vhostId/cert-status/');
     return res.data as Map<String, dynamic>;
   }
+
+  // ── Update check ──────────────────────────────────────────────────────────────────
+
+  /// Compare the deployed commit SHA with the latest on the branch.
+  /// Returns a map with keys: up_to_date, current_sha, current_sha_short,
+  /// latest_sha, latest_sha_short, update_available.
+  Future<Map<String, dynamic>> checkStackUpdate(int stackId) async {
+    final res = await _dio.get('/stacks/$stackId/check-update/');
+    return res.data as Map<String, dynamic>;
+  }
 }
 

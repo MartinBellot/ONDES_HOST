@@ -38,6 +38,9 @@ class _StackDetailScreenState extends State<StackDetailScreen>
   String _staticLogs = '';
   bool _isLoadingLogs = false;
 
+  // ── Update check ────────────────────────────────────────────────
+  Map<String, dynamic>? _updateInfo;
+
   final _api = ApiService();
   final _logsScrollCtrl = ScrollController();
 
@@ -76,8 +79,16 @@ class _StackDetailScreenState extends State<StackDetailScreen>
             Map<String, String>.from((data['env_vars'] as Map? ?? {})
                 .map((k, v) => MapEntry(k.toString(), v.toString()))));
       });
+      _checkForUpdates(); // fire-and-forget
     } catch (_) {}
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      final info = await _api.checkStackUpdate(widget.stackId);
+      if (mounted) setState(() => _updateInfo = info);
+    } catch (_) {}
   }
 
   void _buildEnvControllers(Map<String, String> vars) {
@@ -139,7 +150,10 @@ class _StackDetailScreenState extends State<StackDetailScreen>
   }
 
   Future<void> _deploy() async {
-    setState(() => _deployLogs.clear());
+    setState(() {
+      _deployLogs.clear();
+      _updateInfo = null; // will refresh after redeploy
+    });
     _tabController.animateTo(0); // Switch to deploy log tab
     await context.read<StacksProvider>().deployStack(widget.stackId);
   }
@@ -269,6 +283,18 @@ class _StackDetailScreenState extends State<StackDetailScreen>
           // ── Status banner ──────────────────────────────────────────────
           _StatusBanner(
               status: status, message: statusMsg),
+          // ── Update banner (new commit available) ───────────────────────
+          if (_updateInfo != null &&
+              _updateInfo!['update_available'] == true)
+            _UpdateBanner(
+              currentSha:
+                  _updateInfo!['current_sha_short'] as String? ?? '',
+              latestSha:
+                  _updateInfo!['latest_sha_short'] as String? ?? '',
+              onRedeploy: _deploy,
+              onDismiss: () =>
+                  setState(() => _updateInfo = null),
+            ),
           // ── Action bar ─────────────────────────────────────────────────
           _ActionBar(
               status: status,
@@ -366,6 +392,84 @@ class _StatusBanner extends StatelessWidget {
                   overflow: TextOverflow.ellipsis),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Update banner ────────────────────────────────────────────────────────────
+
+class _UpdateBanner extends StatelessWidget {
+  final String currentSha;
+  final String latestSha;
+  final VoidCallback onRedeploy;
+  final VoidCallback onDismiss;
+
+  const _UpdateBanner({
+    required this.currentSha,
+    required this.latestSha,
+    required this.onRedeploy,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: AppColors.accentYellow.withOpacity(0.10),
+      child: Row(
+        children: [
+          const Icon(Icons.update, size: 16, color: AppColors.accentYellow),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                children: [
+                  const TextSpan(text: 'Nouveau commit disponible\u00a0: '),
+                  TextSpan(
+                    text: currentSha,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600),
+                  ),
+                  const TextSpan(text: ' \u2192 '),
+                  TextSpan(
+                    text: latestSha,
+                    style: const TextStyle(
+                        color: AppColors.accentYellow,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onRedeploy,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.accentYellow,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Redéployer',
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+          InkWell(
+            onTap: onDismiss,
+            borderRadius: BorderRadius.circular(4),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.close,
+                  size: 14, color: AppColors.textSecondary),
+            ),
+          ),
         ],
       ),
     );

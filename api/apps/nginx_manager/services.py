@@ -20,8 +20,10 @@ from pathlib import Path
 import docker
 
 # ── Volume paths inside the API container ────────────────────────────────────
-VHOSTS_DIR     = Path(os.environ.get('NGINX_VHOSTS_DIR',  '/nginx-vhosts'))
-LETSENCRYPT_DIR = Path(os.environ.get('LETSENCRYPT_DIR', '/etc/letsencrypt'))
+# In Docker Compose: NGINX_VHOSTS_DIR + LETSENCRYPT_DIR are injected via env.
+# In local dev (no env vars set): fall back to writable paths under /tmp.
+VHOSTS_DIR      = Path(os.environ.get('NGINX_VHOSTS_DIR',  '/tmp/ondes-nginx-vhosts'))
+LETSENCRYPT_DIR = Path(os.environ.get('LETSENCRYPT_DIR',   '/tmp/ondes-letsencrypt'))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,11 +156,18 @@ def generate_vhost_config(domain: str, upstream_port: int, ssl: bool) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def write_vhost(domain: str, upstream_port: int, ssl: bool) -> dict:
-    """Write the vhost .conf file into the shared volume and reload nginx."""
+    """Write the vhost .conf file into the shared volume and reload nginx.
+
+    The file write is critical — a failure returns status='error'.
+    The nginx reload is best-effort; if the container is not found (e.g. local
+    dev without Docker Compose) the config is still saved and status='saved'.
+    """
     try:
         VHOSTS_DIR.mkdir(parents=True, exist_ok=True)
     except PermissionError:
         return {'status': 'error', 'message': f'Permission refusée sur {VHOSTS_DIR}'}
+    except OSError as exc:
+        return {'status': 'error', 'message': str(exc)}
 
     config = generate_vhost_config(domain, upstream_port, ssl)
     config_path = VHOSTS_DIR / f'{domain}.conf'
@@ -170,11 +179,15 @@ def write_vhost(domain: str, upstream_port: int, ssl: bool) -> dict:
         return {'status': 'error', 'message': str(exc)}
 
     reload_result = reload_nginx()
+    nginx_ok = reload_result['status'] == 'success'
     return {
-        'status': reload_result['status'],
+        'status': 'success' if nginx_ok else 'saved',
         'config_path': str(config_path),
         'config': config,
-        'message': reload_result.get('message', ''),
+        'message': '' if nginx_ok else (
+            'Config sauvegardée. Reload nginx impossible : '
+            + reload_result.get('message', '')
+        ),
     }
 
 
