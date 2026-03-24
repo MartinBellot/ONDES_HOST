@@ -83,6 +83,15 @@ def get_file_content(token: str, owner: str, repo: str, path: str, branch: str =
     return data.get('content', '')
 
 
+def get_latest_commit_sha(token: str, owner: str, repo: str, branch: str) -> str:
+    """Return the SHA of the latest commit on the given branch."""
+    data = _get(
+        f'/repos/{urllib.parse.quote(owner, safe="")}/{urllib.parse.quote(repo, safe="")}/branches/{urllib.parse.quote(branch, safe="")}',
+        token,
+    )
+    return data['commit']['sha']
+
+
 def find_compose_files(token: str, owner: str, repo: str, branch: str = 'main') -> list[str]:
     """
     Scan the root of the repo for docker-compose files.

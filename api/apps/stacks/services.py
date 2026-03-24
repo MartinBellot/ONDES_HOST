@@ -191,6 +191,20 @@ def deploy_app(app_id: int):
 
     _broadcast(app_id, '✅ Dépôt cloné avec succès.')
 
+    # Capture the deployed commit SHA
+    try:
+        sha_result = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=project_dir, capture_output=True, text=True,
+        )
+        if sha_result.returncode == 0:
+            commit_sha = sha_result.stdout.strip()
+            app.current_commit_sha = commit_sha
+            app.save(update_fields=['current_commit_sha'])
+            _broadcast(app_id, f'📌 Commit déployé : {commit_sha[:8]}')
+    except Exception:
+        pass
+
     # ── 2. Write .env ─────────────────────────────────────────────────────────
     if app.env_vars:
         env_path = os.path.join(project_dir, '.env')

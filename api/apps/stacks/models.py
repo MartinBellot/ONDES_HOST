@@ -43,6 +43,10 @@ class ComposeApp(models.Model):
     # ── Optionnel ─────────────────────────────────────────────────────────────
     domain          = models.CharField(max_length=253, blank=True,
                                        help_text='Domaine associé à ce projet')
+    current_commit_sha = models.CharField(
+        max_length=40, blank=True,
+        help_text='SHA du commit actuellement déployé (capturé après chaque déploiement)',
+    )
     last_deployed_at = models.DateTimeField(null=True, blank=True)
     created_at      = models.DateTimeField(auto_now_add=True)
     updated_at      = models.DateTimeField(auto_now=True)

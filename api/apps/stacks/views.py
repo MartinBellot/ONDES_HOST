@@ -147,3 +147,51 @@ class ComposeAppVhostsView(APIView):
         from apps.nginx_manager.serializers import NginxVhostSerializer
         vhosts = NginxVhost.objects.filter(stack=app)
         return Response(NginxVhostSerializer(vhosts, many=True).data)
+
+
+class ComposeAppUpdateCheckView(APIView):
+    """
+    GET /api/stacks/{id}/check-update/
+    Compares the deployed commit SHA with the latest commit on the branch.
+    Returns update_available=True when a new commit is available.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        app = ComposeApp.objects.filter(pk=pk, user=request.user).first()
+        if not app:
+            return Response({'error': 'Projet introuvable'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            token = app.user.github_profile.access_token
+        except Exception:
+            return Response(
+                {'error': 'Compte GitHub non connecté'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            owner, repo = app.github_repo.split('/', 1)
+        except ValueError:
+            return Response(
+                {'error': 'Format de dépôt invalide'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.github_integration.services import get_latest_commit_sha
+        try:
+            latest_sha = get_latest_commit_sha(token, owner, repo, app.github_branch)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        current_sha = app.current_commit_sha or ''
+        up_to_date = (current_sha == latest_sha) if current_sha else None
+
+        return Response({
+            'up_to_date': up_to_date,
+            'current_sha': current_sha,
+            'current_sha_short': current_sha[:8] if current_sha else '',
+            'latest_sha': latest_sha,
+            'latest_sha_short': latest_sha[:8] if latest_sha else '',
+            'update_available': (not up_to_date) if current_sha else None,
+        })
