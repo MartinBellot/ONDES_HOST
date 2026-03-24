@@ -273,18 +273,14 @@ class _GitHubTabState extends State<_GitHubTab> {
   }
 
   Future<void> _verify() async {
-    setState(() => _verifying = true);
-    final ok =
-        await context.read<GitHubProvider>().connect(_tokenCtrl.text.trim());
-    if (ok && mounted) {
-      context.read<GitHubProvider>().fetchRepos(_tokenCtrl.text.trim());
-      setState(() {
-        _tokenVerified = true;
-        _verifying = false;
-      });
-    } else if (mounted) {
-      setState(() => _verifying = false);
-      _snack(context, 'Token invalide');
+    // OAuth is handled via GitHubScreen. Just check if already connected.
+    final gh = context.read<GitHubProvider>();
+    await gh.loadProfile();
+    if (gh.connected) {
+      await gh.fetchRepos();
+      setState(() => _tokenVerified = true);
+    } else {
+      _snack(context, 'Connectez-vous via l\'onglet GitHub');
     }
   }
 
@@ -345,6 +341,9 @@ class _GitHubTabState extends State<_GitHubTab> {
             const SizedBox(width: 12),
             ElevatedButton(
               onPressed: _verifying ? null : _verify,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: gh.connected ? AppColors.accentGreen : null,
+              ),
               child: _verifying
                   ? const SizedBox(
                       width: 14,
@@ -353,16 +352,14 @@ class _GitHubTabState extends State<_GitHubTab> {
                           strokeWidth: 2,
                           valueColor:
                               AlwaysStoppedAnimation(AppColors.background)))
-                  : Text(gh.isConnected ? '✓ Vérifié' : 'Vérifier'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: gh.isConnected ? AppColors.accentGreen : null,
-              ),
+                  : Text(gh.connected ? '✓ Vérifié' : 'Vérifier'),
+              
             ),
           ],
         ),
-        if (gh.isConnected) ...[
+        if (gh.connected) ...[
           const SizedBox(height: 6),
-          Text('Connecté en tant que @${gh.githubLogin}',
+          Text('Connecté en tant que @${gh.login}',
               style:
                   const TextStyle(color: AppColors.accentGreen, fontSize: 13)),
           const SizedBox(height: 20),
@@ -385,7 +382,7 @@ class _GitHubTabState extends State<_GitHubTab> {
                 });
                 context
                     .read<GitHubProvider>()
-                    .fetchBranches(_tokenCtrl.text.trim(), repo);
+                    .fetchBranches(repo.split('/').first, repo.split('/').last);
               },
             ),
           if (_selectedRepo != null) ...[
@@ -1063,7 +1060,9 @@ class _NginxTabState extends State<_NginxTab> {
           style: TextStyle(color: AppColors.textMuted, fontSize: 13),
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 10,
           children: [
             ElevatedButton.icon(
               onPressed: _loading ? null : _preview,
@@ -1078,7 +1077,6 @@ class _NginxTabState extends State<_NginxTab> {
                   : const Icon(Icons.preview_outlined, size: 16),
               label: const Text('Aperçu de la config'),
             ),
-            const SizedBox(width: 12),
             OutlinedButton.icon(
               onPressed: (_config == null || _applying) ? null : _apply,
               icon: _applying
@@ -1144,13 +1142,16 @@ class _TabScaffold extends StatelessWidget {
   const _TabScaffold({required this.children});
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
-        ),
-      );
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 700;
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -1173,6 +1174,16 @@ class _FormRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 700;
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < children.length; i++) ...
+            [if (i > 0) const SizedBox(height: 14), children[i]],
+        ],
+      );
+    }
     final items = <Widget>[];
     for (int i = 0; i < children.length; i++) {
       if (i > 0) items.add(const SizedBox(width: 14));

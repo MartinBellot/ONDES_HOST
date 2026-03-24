@@ -81,7 +81,9 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 20),
               // ── Card ────────────────────────────────────────────────────
               Container(
-                width: 380,
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 380),
+                margin: const EdgeInsets.symmetric(horizontal: 20),
                 padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
                   color: AppColors.surface,

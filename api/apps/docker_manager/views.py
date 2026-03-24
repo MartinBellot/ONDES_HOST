@@ -9,6 +9,31 @@ from .serializers import CreateContainerSerializer
 from .models import ContainerConfig
 
 
+class DockerStatusView(APIView):
+    """Health-check: is the Docker daemon reachable?"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            client = services.get_client()
+            info = client.info()
+            return Response({
+                'available': True,
+                'version': info.get('ServerVersion', '?'),
+            })
+        except Exception as e:
+            return Response({
+                'available': False,
+                'error': str(e),
+                'help': (
+                    'Docker Desktop n\'est pas accessible. '
+                    'Vérifiez qu\'il est bien démarré dans vos Applications. '
+                    'Si vous lancez manage.py runserver directement, '
+                    'Docker Desktop doit être ouvert sur votre Mac.'
+                ),
+            })
+
+
 class ContainerListView(APIView):
     permission_classes = [IsAuthenticated]
 

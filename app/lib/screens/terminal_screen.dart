@@ -261,6 +261,7 @@ class _ConnectionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 700;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -280,8 +281,8 @@ class _ConnectionPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
+          if (isMobile) ...[
+            Row(children: [
               Expanded(
                 flex: 3,
                 child: _ConnField(
@@ -294,20 +295,23 @@ class _ConnectionPanel extends StatelessWidget {
                     label: 'Port',
                     keyboardType: TextInputType.number),
               ),
-              const SizedBox(width: 10),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
               Expanded(
-                flex: 2,
-                child:
-                    _ConnField(ctrl: userCtrl, label: 'Username', hint: 'root'),
+                child: _ConnField(
+                    ctrl: userCtrl, label: 'Username', hint: 'root'),
               ),
               const SizedBox(width: 10),
               Expanded(
-                flex: 2,
                 child: _ConnField(
                     ctrl: passCtrl, label: 'Password', obscure: true),
               ),
-              const SizedBox(width: 16),
-              ElevatedButton.icon(
+            ]),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: connecting ? null : onConnect,
                 icon: connecting
                     ? const SizedBox(
@@ -322,8 +326,52 @@ class _ConnectionPanel extends StatelessWidget {
                     : const Icon(Icons.power_settings_new, size: 16),
                 label: Text(connecting ? 'Connecting…' : 'Connect'),
               ),
-            ],
-          ),
+            ),
+          ] else
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _ConnField(
+                      ctrl: hostCtrl, label: 'Host', hint: '192.168.1.1'),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _ConnField(
+                      ctrl: portCtrl,
+                      label: 'Port',
+                      keyboardType: TextInputType.number),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: _ConnField(
+                      ctrl: userCtrl, label: 'Username', hint: 'root'),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: _ConnField(
+                      ctrl: passCtrl, label: 'Password', obscure: true),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: connecting ? null : onConnect,
+                  icon: connecting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation(AppColors.background),
+                          ),
+                        )
+                      : const Icon(Icons.power_settings_new, size: 16),
+                  label: Text(connecting ? 'Connecting…' : 'Connect'),
+                ),
+              ],
+            ),
         ],
       ),
     );

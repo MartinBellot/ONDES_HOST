@@ -1,9 +1,33 @@
+import os
+import platform
+
 import docker
-from docker.errors import NotFound, APIError
+from docker.errors import NotFound, APIError, DockerException
 
 
 def get_client():
-    return docker.from_env()
+    """
+    Connect to the Docker daemon.
+    On macOS with Docker Desktop, the socket may not be at the standard
+    /var/run/docker.sock path — we try alternate locations automatically.
+    """
+    try:
+        return docker.from_env()
+    except DockerException:
+        if platform.system() == 'Darwin':
+            home = os.path.expanduser('~')
+            alt_socks = [
+                f'unix://{home}/.docker/run/docker.sock',
+                f'unix://{home}/Library/Containers/com.docker.docker/Data/docker.sock',
+            ]
+            for sock in alt_socks:
+                try:
+                    client = docker.DockerClient(base_url=sock)
+                    client.ping()
+                    return client
+                except Exception:
+                    continue
+        raise
 
 
 def list_containers(all_containers: bool = True) -> list:

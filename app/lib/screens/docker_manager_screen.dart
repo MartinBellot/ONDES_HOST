@@ -81,38 +81,63 @@ class _DockerManagerScreenState extends State<DockerManagerScreen> {
         children: [
           _Header('Deploy Container'),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Deploy form ───────────────────────────────────
-                  Flexible(
-                    flex: 2,
-                    child: _DeployForm(
-                      formKey: _formKey,
-                      name: _name,
-                      image: _image,
-                      hPort: _hPort,
-                      cPort: _cPort,
-                      volHost: _volHost,
-                      volCont: _volCont,
-                      deploying: _deploying,
-                      onDeploy: _deploy,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  // ── Container list ────────────────────────────────
-                  Flexible(
-                    flex: 3,
-                    child: Consumer<DockerProvider>(
-                      builder: (_, docker, __) =>
-                          _ContainerList(docker: docker),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            child: Builder(builder: (context) {
+              final isMobile = MediaQuery.sizeOf(context).width < 700;
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(isMobile ? 16 : 24),
+                child: isMobile
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _DeployForm(
+                            formKey: _formKey,
+                            name: _name,
+                            image: _image,
+                            hPort: _hPort,
+                            cPort: _cPort,
+                            volHost: _volHost,
+                            volCont: _volCont,
+                            deploying: _deploying,
+                            onDeploy: _deploy,
+                          ),
+                          const SizedBox(height: 20),
+                          Consumer<DockerProvider>(
+                            builder: (_, docker, __) =>
+                                _ContainerList(docker: docker),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── Deploy form ───────────────────────────────
+                          Flexible(
+                            flex: 2,
+                            child: _DeployForm(
+                              formKey: _formKey,
+                              name: _name,
+                              image: _image,
+                              hPort: _hPort,
+                              cPort: _cPort,
+                              volHost: _volHost,
+                              volCont: _volCont,
+                              deploying: _deploying,
+                              onDeploy: _deploy,
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          // ── Container list ────────────────────────────
+                          Flexible(
+                            flex: 3,
+                            child: Consumer<DockerProvider>(
+                              builder: (_, docker, __) =>
+                                  _ContainerList(docker: docker),
+                            ),
+                          ),
+                        ],
+                      ),
+              );
+            }),
           ),
         ],
       ),

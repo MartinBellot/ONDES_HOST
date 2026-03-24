@@ -4,49 +4,171 @@ import '../services/api_service.dart';
 class GitHubProvider extends ChangeNotifier {
   final _api = ApiService();
 
-  String? _githubLogin;
+  // ── Profile ──────────────────────────────────────────────────────────────
+  bool _connected = false;
+  String? _login;
+  String? _name;
+  String? _avatarUrl;
+  bool _isProfileLoading = false;
+
+  bool get connected => _connected;
+  String? get login => _login;
+  String? get name => _name;
+  String? get avatarUrl => _avatarUrl;
+  bool get isProfileLoading => _isProfileLoading;
+
+  // ── OAuth App config ─────────────────────────────────────────────────────
+  bool _oauthConfigured = false;
+  String? _callbackUrl;
+  String? _clientId;
+  String? _clientIdHint;
+  bool _isConfigLoading = false;
+  bool _isConfigSaving = false;
+
+  bool get oauthConfigured => _oauthConfigured;
+  String? get callbackUrl => _callbackUrl;
+  String? get clientId => _clientId;
+  String? get clientIdHint => _clientIdHint;
+  bool get isConfigLoading => _isConfigLoading;
+  bool get isConfigSaving => _isConfigSaving;
+
+  // ── OAuth runtime ────────────────────────────────────────────────────────
+  String? _authUrl;
+  String? get authUrl => _authUrl;
+
+  // ── Repos ────────────────────────────────────────────────────────────────
   List<dynamic> _repos = [];
-  List<String> _branches = [];
   bool _isLoadingRepos = false;
-  bool _isLoadingBranches = false;
-  String? _error;
 
-  String? get githubLogin => _githubLogin;
   List<dynamic> get repos => _repos;
-  List<String> get branches => _branches;
   bool get isLoadingRepos => _isLoadingRepos;
+
+  // ── Branches + compose ──────────────────────────────────────────────────
+  List<String> _branches = [];
+  bool _isLoadingBranches = false;
+  List<String> _composeFiles = [];
+  Map<String, String> _envTemplate = {};
+  bool _isLoadingCompose = false;
+
+  List<String> get branches => _branches;
   bool get isLoadingBranches => _isLoadingBranches;
+  List<String> get composeFiles => _composeFiles;
+  Map<String, String> get envTemplate => _envTemplate;
+  bool get isLoadingCompose => _isLoadingCompose;
+
+  // ── Error ────────────────────────────────────────────────────────────────
+  String? _error;
   String? get error => _error;
-  bool get isConnected => _githubLogin != null;
 
-  /// Validates a PAT and fetches the authenticated user
-  Future<bool> connect(String token) async {
-    _error = null;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Load OAuth App config (called on screen open to show wizard or connect button).
+  Future<void> loadConfig() async {
+    _isConfigLoading = true;
+    notifyListeners();
     try {
-      final user = await _api.githubVerifyToken(token);
-      _githubLogin = user['login'] as String;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Invalid token or GitHub unreachable.';
-      notifyListeners();
-      return false;
-    }
-  }
-
-  void disconnect() {
-    _githubLogin = null;
-    _repos = [];
-    _branches = [];
+      final data = await _api.githubGetConfig();
+      _oauthConfigured = data['configured'] as bool? ?? false;
+      _callbackUrl = data['callback_url'] as String?;
+      if (_oauthConfigured) {
+        _clientId = data['client_id'] as String?;
+        _clientIdHint = null;
+      }
+    } catch (_) {}
+    _isConfigLoading = false;
     notifyListeners();
   }
 
-  Future<void> fetchRepos(String token) async {
+  /// Save new OAuth App credentials. Returns null on success, error string on failure.
+  Future<String?> saveConfig(String clientId, String clientSecret) async {
+    _isConfigSaving = true;
+    notifyListeners();
+    try {
+      final data = await _api.githubSaveConfig(clientId, clientSecret);
+      _oauthConfigured = data['configured'] as bool? ?? true;
+      _clientId = data['client_id'] as String?;
+    } catch (e) {
+      _isConfigSaving = false;
+      notifyListeners();
+      return e.toString();
+    }
+    _isConfigSaving = false;
+    notifyListeners();
+    return null;
+  }
+
+  Future<void> deleteConfig() async {
+    try {
+      await _api.githubDeleteConfig();
+    } catch (_) {}
+    _oauthConfigured = false;
+    _clientId = null;
+    _authUrl = null;
+    notifyListeners();
+  }
+
+  /// Load profile on app start (called from MainShell).
+  Future<void> loadProfile() async {
+    _isProfileLoading = true;
+    notifyListeners();
+    try {
+      final data = await _api.githubProfile();
+      _applyProfile(data);
+    } catch (_) {}
+    _isProfileLoading = false;
+    notifyListeners();
+  }
+
+  void _applyProfile(Map<String, dynamic> data) {
+    _connected = data['connected'] as bool? ?? false;
+    if (_connected) {
+      _login = data['login'] as String?;
+      _name = data['name'] as String?;
+      _avatarUrl = data['avatar_url'] as String?;
+    }
+  }
+
+  /// Request the OAuth authorize URL from backend (requires config to be saved first).
+  Future<Map<String, dynamic>> requestAuthUrl() async {
+    _error = null;
+    final data = await _api.githubOAuthStart();
+    _oauthConfigured = data['configured'] as bool? ?? false;
+    if (_oauthConfigured) {
+      _authUrl = data['auth_url'] as String?;
+    } else {
+      _callbackUrl = data['callback_url'] as String?;
+    }
+    notifyListeners();
+    return data;
+  }
+
+  /// Step 2: called after the OAuth popup closes successfully.
+  Future<void> onOAuthSuccess() async {
+    await loadProfile();
+    if (_connected) await fetchRepos();
+  }
+
+  Future<void> disconnect() async {
+    try {
+      await _api.githubDisconnect();
+    } catch (_) {}
+    _connected = false;
+    _login = null;
+    _name = null;
+    _avatarUrl = null;
+    _repos = [];
+    _branches = [];
+    _composeFiles = [];
+    _envTemplate = {};
+    notifyListeners();
+  }
+
+  Future<void> fetchRepos() async {
     _isLoadingRepos = true;
     _error = null;
     notifyListeners();
     try {
-      _repos = await _api.githubListRepos(token);
+      _repos = await _api.githubListRepos();
     } catch (e) {
       _error = e.toString();
     }
@@ -54,16 +176,42 @@ class GitHubProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchBranches(String token, String repo) async {
+  Future<void> fetchBranches(String owner, String repo) async {
     _isLoadingBranches = true;
     _branches = [];
+    _composeFiles = [];
+    _envTemplate = {};
     notifyListeners();
     try {
-      _branches = await _api.githubListBranches(token, repo);
+      _branches = await _api.githubListBranches(owner, repo);
     } catch (e) {
       _error = e.toString();
     }
     _isLoadingBranches = false;
+    notifyListeners();
+  }
+
+  Future<void> fetchComposeFiles(
+      String owner, String repo, String branch) async {
+    _isLoadingCompose = true;
+    _composeFiles = [];
+    _envTemplate = {};
+    notifyListeners();
+    try {
+      final data = await _api.githubComposeFiles(owner, repo, branch);
+      _composeFiles = (data['compose_files'] as List? ?? []).cast<String>();
+      _envTemplate = Map<String, String>.from(
+          (data['env_template'] as Map? ?? {})
+              .map((k, v) => MapEntry(k.toString(), v.toString())));
+    } catch (e) {
+      _error = e.toString();
+    }
+    _isLoadingCompose = false;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _error = null;
     notifyListeners();
   }
 }

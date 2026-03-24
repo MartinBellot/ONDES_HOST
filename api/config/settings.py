@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'apps.nginx_manager',
     'apps.sites',
     'apps.github_integration',
+    'apps.stacks',
 ]
 
 MIDDLEWARE = [
@@ -137,3 +138,8 @@ LANGUAGE_CODE = 'fr-fr'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
+
+# ─── GitHub OAuth ─────────────────────────────────────────────────────────────
+GITHUB_CLIENT_ID     = config('GITHUB_CLIENT_ID', default='')
+GITHUB_CLIENT_SECRET = config('GITHUB_CLIENT_SECRET', default='')
+FRONTEND_URL         = config('FRONTEND_URL', default='http://localhost:3000')

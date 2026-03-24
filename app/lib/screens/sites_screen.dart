@@ -44,50 +44,65 @@ class _SitesScreenState extends State<SitesScreen> {
       body: Column(
         children: [
           // Header
-          Container(
-            height: 56,
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Mes Sites',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+          Builder(builder: (context) {
+            final isMobile = MediaQuery.sizeOf(context).width < 700;
+            return Container(
+              height: 56,
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 28),
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
+                border: Border(bottom: BorderSide(color: AppColors.border)),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Mes Sites',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                Consumer<SitesProvider>(
-                  builder: (_, sites, __) => TextButton.icon(
-                    onPressed: sites.isLoading
-                        ? null
-                        : () => context.read<SitesProvider>().fetchSites(),
-                    icon: const Icon(Icons.refresh,
-                        size: 14, color: AppColors.textSecondary),
-                    label: const Text('Refresh',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13)),
+                  Consumer<SitesProvider>(
+                    builder: (_, sites, __) => isMobile
+                        ? IconButton(
+                            onPressed: sites.isLoading
+                                ? null
+                                : () => context.read<SitesProvider>().fetchSites(),
+                            icon: const Icon(Icons.refresh,
+                                size: 18, color: AppColors.textSecondary),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          )
+                        : TextButton.icon(
+                            onPressed: sites.isLoading
+                                ? null
+                                : () => context.read<SitesProvider>().fetchSites(),
+                            icon: const Icon(Icons.refresh,
+                                size: 14, color: AppColors.textSecondary),
+                            label: const Text('Refresh',
+                                style: TextStyle(
+                                    color: AppColors.textSecondary, fontSize: 13)),
+                          ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _createSite,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Nouveau site'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _createSite,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: isMobile
+                        ? const Text('Créer')
+                        : const Text('Nouveau site'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          }),
           // Body
           Expanded(
             child: Consumer<SitesProvider>(
@@ -100,8 +115,9 @@ class _SitesScreenState extends State<SitesScreen> {
                 if (sites.sites.isEmpty) {
                   return _EmptyState(onCreateTap: _createSite);
                 }
+                final isMobile = MediaQuery.sizeOf(context).width < 700;
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.all(28),
+                  padding: EdgeInsets.all(isMobile ? 16 : 28),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -111,29 +127,59 @@ class _SitesScreenState extends State<SitesScreen> {
                             color: AppColors.textMuted, fontSize: 13),
                       ),
                       const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: sites.sites
-                            .map<Widget>((s) => SiteCard(
-                                  site: s,
-                                  onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => SiteDetailScreen(site: s),
+                      if (isMobile)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: sites.sites
+                              .map<Widget>((s) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: SiteCard(
+                                      site: s,
+                                      isMobile: true,
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              SiteDetailScreen(site: s),
+                                        ),
+                                      ),
+                                      onDelete: () async {
+                                        final confirmed = await _confirmDelete(
+                                            context, s['name']);
+                                        if (confirmed && context.mounted) {
+                                          context
+                                              .read<SitesProvider>()
+                                              .deleteSite(s['id'] as int);
+                                        }
+                                      },
                                     ),
-                                  ),
-                                  onDelete: () async {
-                                    final confirmed = await _confirmDelete(
-                                        context, s['name']);
-                                    if (confirmed && context.mounted) {
-                                      context
-                                          .read<SitesProvider>()
-                                          .deleteSite(s['id'] as int);
-                                    }
-                                  },
-                                ))
-                            .toList(),
-                      ),
+                                  ))
+                              .toList(),
+                        )
+                      else
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: sites.sites
+                              .map<Widget>((s) => SiteCard(
+                                    site: s,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            SiteDetailScreen(site: s),
+                                      ),
+                                    ),
+                                    onDelete: () async {
+                                      final confirmed = await _confirmDelete(
+                                          context, s['name']);
+                                      if (confirmed && context.mounted) {
+                                        context
+                                            .read<SitesProvider>()
+                                            .deleteSite(s['id'] as int);
+                                      }
+                                    },
+                                  ))
+                              .toList(),
+                        ),
                     ],
                   ),
                 );
@@ -184,12 +230,14 @@ class SiteCard extends StatefulWidget {
   final dynamic site;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final bool isMobile;
 
   const SiteCard(
       {super.key,
       required this.site,
       required this.onTap,
-      required this.onDelete});
+      required this.onDelete,
+      this.isMobile = false});
 
   @override
   State<SiteCard> createState() => _SiteCardState();
@@ -213,7 +261,7 @@ class _SiteCardState extends State<SiteCard> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 320,
+          width: widget.isMobile ? double.infinity : 320,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: _hovering ? AppColors.surfaceVariant : AppColors.surface,

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
-import '../screens/sites_screen.dart';
+import '../providers/github_provider.dart';
+import '../providers/stacks_provider.dart';
+import '../screens/github_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/docker_manager_screen.dart';
 import '../screens/terminal_screen.dart';
@@ -20,11 +22,24 @@ class _MainShellState extends State<MainShell> {
 
   // All tab screens — kept alive simultaneously via IndexedStack
   static const List<Widget> _screens = [
-    SitesScreen(),
+    GitHubScreen(),
     DashboardScreen(),
     DockerManagerScreen(),
     TerminalScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load GitHub profile and stacks on app start.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final gh = context.read<GitHubProvider>();
+      await gh.loadProfile();
+      // If already connected (token persisted in DB), fetch repos immediately.
+      if (gh.connected && gh.repos.isEmpty) gh.fetchRepos();
+      if (mounted) context.read<StacksProvider>().fetchStacks();
+    });
+  }
 
   void _navigate(int index) {
     if (index == _index) return;
@@ -98,9 +113,9 @@ class _AppBottomBar extends StatelessWidget {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.web_outlined),
-            selectedIcon: Icon(Icons.web),
-            label: 'Sites',
+            icon: Icon(Icons.hub_outlined),
+            selectedIcon: Icon(Icons.hub),
+            label: 'GitHub',
           ),
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),

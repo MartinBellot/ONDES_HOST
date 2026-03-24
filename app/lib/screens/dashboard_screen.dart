@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/docker_provider.dart';
+import '../services/api_service.dart';
 import '../widgets/metric_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -12,12 +13,23 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final _api = ApiService();
+  Map<String, dynamic>? _dockerStatus;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => context.read<DockerProvider>().fetchContainers(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<DockerProvider>().fetchContainers();
+      _loadDockerStatus();
+    });
+  }
+
+  Future<void> _loadDockerStatus() async {
+    try {
+      final status = await _api.dockerStatus();
+      if (mounted) setState(() => _dockerStatus = status);
+    } catch (_) {}
   }
 
   @override
@@ -26,6 +38,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Docker unavailable banner ──────────────────────────────────
+          if (_dockerStatus != null &&
+              _dockerStatus!['available'] == false)
+            _DockerUnavailableBanner(
+                helpText: _dockerStatus!['help'] as String? ?? ''),
           _PageHeader(
             title: 'Dashboard',
             action: Consumer<DockerProvider>(
@@ -303,4 +320,43 @@ class _ChipButtonState extends State<_ChipButton> {
           ),
         ),
       );
+}
+
+// ─── Docker unavailable banner ────────────────────────────────────────────────
+class _DockerUnavailableBanner extends StatelessWidget {
+  final String helpText;
+  const _DockerUnavailableBanner({required this.helpText});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: AppColors.accentYellow.withOpacity(0.08),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              color: AppColors.accentYellow, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Docker non disponible',
+                    style: TextStyle(
+                        color: AppColors.accentYellow,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
+                if (helpText.isNotEmpty)
+                  Text(helpText,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -223,19 +223,117 @@ class ApiService {
 
   // ── GitHub ───────────────────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> githubVerifyToken(String token) async {
-    final res = await _dio.post('/github/user/', data: {'token': token});
+  /// OAuth App config — GET, POST (save), DELETE
+  Future<Map<String, dynamic>> githubGetConfig() async {
+    final res = await _dio.get('/github/config/');
     return res.data as Map<String, dynamic>;
   }
 
-  Future<List<dynamic>> githubListRepos(String token) async {
-    final res = await _dio.post('/github/repos/', data: {'token': token});
+  Future<Map<String, dynamic>> githubSaveConfig(
+      String clientId, String clientSecret) async {
+    final res = await _dio.post('/github/config/', data: {
+      'client_id': clientId,
+      'client_secret': clientSecret,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> githubDeleteConfig() async {
+    await _dio.delete('/github/config/');
+  }
+
+  /// Returns {configured: bool, auth_url?: String, callback_url?: String}
+  Future<Map<String, dynamic>> githubOAuthStart() async {
+    final res = await _dio.get('/github/oauth/start/');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> githubProfile() async {
+    final res = await _dio.get('/github/profile/');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> githubDisconnect() async {
+    await _dio.delete('/github/profile/');
+  }
+
+  Future<List<dynamic>> githubListRepos({int page = 1}) async {
+    final res = await _dio.get('/github/repos/', queryParameters: {'page': page});
     return res.data as List<dynamic>;
   }
 
-  Future<List<String>> githubListBranches(String token, String repo) async {
-    final res = await _dio
-        .post('/github/branches/', data: {'token': token, 'repo': repo});
+  Future<List<String>> githubListBranches(String owner, String repo) async {
+    final res = await _dio.get('/github/repos/$owner/$repo/branches/');
     return (res.data as List<dynamic>).cast<String>();
+  }
+
+  Future<Map<String, dynamic>> githubComposeFiles(
+      String owner, String repo, String branch) async {
+    final res = await _dio.get(
+      '/github/repos/$owner/$repo/compose-files/',
+      queryParameters: {'branch': branch},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  // ── Stacks ────────────────────────────────────────────────────────────────
+
+  Future<List<dynamic>> listStacks() async {
+    final res = await _dio.get('/stacks/');
+    return res.data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getStack(int id) async {
+    final res = await _dio.get('/stacks/$id/');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createStack(Map<String, dynamic> data) async {
+    final res = await _dio.post('/stacks/', data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateStack(int id, Map<String, dynamic> data) async {
+    final res = await _dio.patch('/stacks/$id/', data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteStack(int id) async {
+    await _dio.delete('/stacks/$id/');
+  }
+
+  Future<Map<String, dynamic>> deployStack(int id) async {
+    final res = await _dio.post('/stacks/$id/deploy/');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> stackAction(int id, String action) async {
+    final res = await _dio.post('/stacks/$id/action/$action/');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<String> stackLogs(int id, {int lines = 200}) async {
+    final res =
+        await _dio.get('/stacks/$id/logs/', queryParameters: {'lines': lines});
+    return (res.data as Map<String, dynamic>)['logs'] as String? ?? '';
+  }
+
+  Future<Map<String, dynamic>> getStackEnv(int id) async {
+    final res = await _dio.get('/stacks/$id/env/');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateStackEnv(
+      int id, Map<String, String> envVars) async {
+    final res =
+        await _dio.patch('/stacks/$id/env/', data: {'env_vars': envVars});
+    return res.data as Map<String, dynamic>;
+  }
+
+  // ── Docker status ─────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> dockerStatus() async {
+    final res = await _dio.get('/docker/status/');
+    return res.data as Map<String, dynamic>;
   }
 }

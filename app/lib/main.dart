@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/docker_provider.dart';
-import 'providers/sites_provider.dart';
 import 'providers/github_provider.dart';
+import 'providers/stacks_provider.dart';
 import 'screens/login_screen.dart';
 import 'widgets/main_shell.dart';
 
@@ -14,8 +14,8 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => DockerProvider()),
-        ChangeNotifierProvider(create: (_) => SitesProvider()),
         ChangeNotifierProvider(create: (_) => GitHubProvider()),
+        ChangeNotifierProvider(create: (_) => StacksProvider()),
       ],
       child: const OndesApp(),
     ),

@@ -11,7 +11,7 @@ class Sidebar extends StatelessWidget {
       {super.key, required this.selectedIndex, required this.onNavigate});
 
   static const _items = [
-    _NavItem(icon: Icons.web_outlined, label: 'Mes Sites'),
+    _NavItem(icon: Icons.hub_outlined, label: 'GitHub'),
     _NavItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
     _NavItem(icon: Icons.inventory_2_outlined, label: 'Containers'),
     _NavItem(icon: Icons.terminal_outlined, label: 'Terminal'),

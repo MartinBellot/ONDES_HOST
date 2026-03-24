@@ -8,5 +8,5 @@ daphne==4.1.0
 psycopg2-binary==2.9.9
 python-decouple==3.8
 dj-database-url==2.1.0
-docker==7.0.0
+docker==7.1.0
 paramiko==3.4.0
