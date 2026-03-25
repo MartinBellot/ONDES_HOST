@@ -251,3 +251,5 @@ Credentials are stored in the database via the `GitHubOAuthConfig` singleton mod
 | State management | Provider |
 | HTTP client | Dio |
 | Fonts | Google Fonts — Inter + JetBrains Mono |
+
+> 🌐 **Site officiel :** [**https://ondes.pro**](https://ondes.pro)
