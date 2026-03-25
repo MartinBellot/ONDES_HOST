@@ -137,7 +137,7 @@ class _ContainerTable extends StatelessWidget {
       );
     }
     if (docker.containers.isEmpty) {
-      return _EmptyState(
+      return const _EmptyState(
           'No containers found.\nDeploy one from the Containers tab.');
     }
     return Container(
@@ -304,10 +304,10 @@ class _ChipButtonState extends State<_ChipButton> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: _hovering
-                  ? widget.color.withOpacity(0.15)
-                  : widget.color.withOpacity(0.08),
+                  ? widget.color.withValues(alpha: 0.15)
+                  : widget.color.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: widget.color.withOpacity(0.3)),
+              border: Border.all(color: widget.color.withValues(alpha: 0.3)),
             ),
             child: Text(
               widget.label,
@@ -332,7 +332,7 @@ class _DockerUnavailableBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppColors.accentYellow.withOpacity(0.08),
+      color: AppColors.accentYellow.withValues(alpha: 0.08),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

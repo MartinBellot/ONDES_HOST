@@ -30,7 +30,7 @@ class OndesApp extends StatelessWidget {
     return MaterialApp(
       title: 'Ondes',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
+      theme: AppTheme().ultraDarkTheme,
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
           if (auth.isLoading) {

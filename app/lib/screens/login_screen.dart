@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _Label('Username'),
+                      const _Label('Username'),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _usernameCtrl,
@@ -108,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onFieldSubmitted: (_) => _submit(),
                       ),
                       const SizedBox(height: 16),
-                      _Label('Password'),
+                      const _Label('Password'),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _passwordCtrl,

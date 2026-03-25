@@ -190,7 +190,7 @@ class _StackDetailScreenState extends State<StackDetailScreen>
     );
     if (ok == true && mounted) {
       await context.read<StacksProvider>().deleteStack(widget.stackId);
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -368,7 +368,7 @@ class _StatusBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: color.withOpacity(0.08),
+      color: color.withValues(alpha: 0.08),
       child: Row(
         children: [
           Container(
@@ -418,7 +418,7 @@ class _UpdateBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppColors.accentYellow.withOpacity(0.10),
+      color: AppColors.accentYellow.withValues(alpha: 0.10),
       child: Row(
         children: [
           const Icon(Icons.update, size: 16, color: AppColors.accentYellow),
@@ -560,7 +560,7 @@ class _ActionBtn extends StatelessWidget {
       label: Text(label, style: const TextStyle(fontSize: 13)),
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
-        side: BorderSide(color: color.withOpacity(0.5)),
+        side: BorderSide(color: color.withValues(alpha: 0.5)),
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         shape:
@@ -1191,15 +1191,17 @@ class _VhostCard extends StatelessWidget {
     if (expiresAt != null) {
       try { expiry = DateTime.parse(expiresAt); } catch (_) {}
     }
-    final days = daysLeft ?? (expiry != null
-        ? expiry.difference(DateTime.now()).inDays
-        : null);
+    final days = daysLeft ?? (expiry?.difference(DateTime.now()).inDays);
 
     Color expiryColor = AppColors.accentGreen;
     if (days != null) {
-      if (days < 0) expiryColor = AppColors.accentRed;
-      else if (days < 7) expiryColor = AppColors.accentRed;
-      else if (days < 30) expiryColor = AppColors.accentYellow;
+      if (days < 0) {
+        expiryColor = AppColors.accentRed;
+      } else if (days < 7) {
+        expiryColor = AppColors.accentRed;
+      } else if (days < 30) {
+        expiryColor = AppColors.accentYellow;
+      }
     }
 
     return Container(
@@ -1285,9 +1287,9 @@ class _VhostCard extends StatelessWidget {
                 InkWell(
                   onTap: onRefreshCert,
                   borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: const Icon(Icons.refresh,
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(Icons.refresh,
                         size: 14, color: AppColors.textSecondary),
                   ),
                 ),
@@ -1372,7 +1374,7 @@ class _LabelChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: AppColors.accent.withOpacity(0.12),
+          color: AppColors.accent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(label,
@@ -1640,7 +1642,7 @@ class _AddVhostDialogState extends State<_AddVhostDialog> {
       }),
     ];
     return DropdownButtonFormField<int>(
-      value: _selectedContainerIdx ?? -1,
+      initialValue: _selectedContainerIdx ?? -1,
       items: items,
       isExpanded: true,
       onChanged: (v) => _selectContainerIdx(v == -1 ? null : v),
@@ -1654,7 +1656,7 @@ class _AddVhostDialogState extends State<_AddVhostDialog> {
     final ports = _selectedPorts;
     final currentHostPort = int.tryParse(_portCtrl.text);
     return DropdownButtonFormField<int>(
-      value: currentHostPort,
+      initialValue: currentHostPort,
       items: ports.map((p) {
         final hp = p['host_port'] as int?;
         final cp = p['container_port'] ?? '';
@@ -1821,7 +1823,7 @@ class _SslActivationSheetState extends State<_SslActivationSheet> {
 
             // ── DNS Guide ───────────────────────────────────────────────
             if (!sslEnabled) ...[
-              _SectionTitle('1. Vérifications DNS préalables'),
+              const _SectionTitle('1. Vérifications DNS préalables'),
               const SizedBox(height: 8),
               _DnsGuideCard(domain: domain),
               const SizedBox(height: 16),
@@ -1865,9 +1867,9 @@ class _SslActivationSheetState extends State<_SslActivationSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.accentRed.withOpacity(0.08),
+                  color: AppColors.accentRed.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.accentRed.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.accentRed.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1889,10 +1891,10 @@ class _SslActivationSheetState extends State<_SslActivationSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.accentGreen.withOpacity(0.08),
+                  color: AppColors.accentGreen.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: AppColors.accentGreen.withOpacity(0.3)),
+                      color: AppColors.accentGreen.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1937,7 +1939,7 @@ class _DnsGuideCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.accent.withOpacity(0.25)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1954,13 +1956,13 @@ class _DnsGuideCard extends StatelessWidget {
             value: '$domain  →  <IP_publique_serveur>',
           ),
           const SizedBox(height: 6),
-          _DnsRow(
+          const _DnsRow(
             icon: Icons.timer_outlined,
             label: 'TTL recommandé',
             value: '300 – 3600 secondes',
           ),
           const SizedBox(height: 6),
-          _DnsRow(
+          const _DnsRow(
             icon: Icons.block_outlined,
             label: 'Port 80',
             value: 'Doit être ouvert (pare-feu / hébergeur)',

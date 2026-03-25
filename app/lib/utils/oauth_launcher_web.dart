@@ -1,5 +1,5 @@
 // Web-only implementation — compiled only when dart.library.html is available.
-// ignore: avoid_web_libraries_in_flutter
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'dart:html' as html;
 
 /// Opens a GitHub OAuth popup and invokes [callback] with [true] on success,

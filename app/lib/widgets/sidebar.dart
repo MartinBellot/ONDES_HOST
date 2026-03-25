@@ -134,7 +134,7 @@ class _SidebarTileState extends State<_SidebarTile> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.isSelected
-                ? AppColors.accent.withOpacity(0.1)
+                ? AppColors.accent.withValues(alpha: 0.1)
                 : _hovering
                     ? AppColors.surfaceVariant
                     : Colors.transparent,

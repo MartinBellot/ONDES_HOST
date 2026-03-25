@@ -268,7 +268,7 @@ class _SiteCardState extends State<SiteCard> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: _hovering
-                  ? AppColors.accent.withOpacity(0.4)
+                  ? AppColors.accent.withValues(alpha: 0.4)
                   : AppColors.border,
             ),
           ),
@@ -317,9 +317,9 @@ class _SiteCardState extends State<SiteCard> {
                 spacing: 6,
                 children: [
                   _Tag(label: _typeLabel(type), color: AppColors.accent),
-                  if (ssl) _Tag(label: 'SSL ✓', color: AppColors.accentGreen),
+                  if (ssl) const _Tag(label: 'SSL ✓', color: AppColors.accentGreen),
                   if (site['github_repo']?.isNotEmpty == true)
-                    _Tag(label: 'GitHub', color: AppColors.textSecondary),
+                    const _Tag(label: 'GitHub', color: AppColors.textSecondary),
                 ],
               ),
               const SizedBox(height: 14),
@@ -413,9 +413,9 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Text(label,
             style: TextStyle(
@@ -535,7 +535,7 @@ class _NewSiteDialogState extends State<_NewSiteDialog> {
                     fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              value: _type,
+              initialValue: _type,
               dropdownColor: AppColors.surfaceVariant,
               style:
                   const TextStyle(color: AppColors.textPrimary, fontSize: 14),

@@ -45,7 +45,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings
 
       - name: Check for missing migrations
-        run: python manage.py migrate --check
+        run: python manage.py makemigrations --check --no-input
         env:
           DJANGO_SETTINGS_MODULE: config.settings
 

@@ -79,7 +79,7 @@ class _DockerManagerScreenState extends State<DockerManagerScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _Header('Deploy Container'),
+          const _Header('Deploy Container'),
           Expanded(
             child: Builder(builder: (context) {
               final isMobile = MediaQuery.sizeOf(context).width < 700;
@@ -455,7 +455,7 @@ class _MiniBtnState extends State<_MiniBtn> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: _hov
-                  ? widget.color.withOpacity(0.15)
+                  ? widget.color.withValues(alpha: 0.15)
                   : AppColors.surfaceVariant,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: AppColors.border),

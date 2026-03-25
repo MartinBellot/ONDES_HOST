@@ -33,13 +33,14 @@ class _SiteDetailScreenState extends State<SiteDetailScreen>
   }
 
   Future<void> _refreshSite() async {
-    await context.read<SitesProvider>().fetchSites();
-    final updated = context
-        .read<SitesProvider>()
+    final provider = context.read<SitesProvider>();
+    await provider.fetchSites();
+    final updated = provider
         .sites
         .firstWhere((s) => s['id'] == _site['id'], orElse: () => _site);
-    if (mounted)
+    if (mounted) {
       setState(() => _site = Map<String, dynamic>.from(updated as Map));
+    }
   }
 
   @override
@@ -202,7 +203,7 @@ class _GeneralTabState extends State<_GeneralTab> {
   Widget build(BuildContext context) {
     return _TabScaffold(
       children: [
-        _SectionTitle('Informations générales'),
+        const _SectionTitle('Informations générales'),
         const SizedBox(height: 16),
         _FormRow(children: [
           _FormField('Nom du site', _name, hint: 'mon-app'),
@@ -252,8 +253,7 @@ class _GitHubTabState extends State<_GitHubTab> {
   late TextEditingController _tokenCtrl;
   String? _selectedRepo;
   String? _selectedBranch;
-  bool _tokenVerified = false;
-  bool _verifying = false;
+  final bool _verifying = false;
   bool _deploying = false;
 
   @override
@@ -276,9 +276,9 @@ class _GitHubTabState extends State<_GitHubTab> {
     // OAuth is handled via GitHubScreen. Just check if already connected.
     final gh = context.read<GitHubProvider>();
     await gh.loadProfile();
+    if (!mounted) return;
     if (gh.connected) {
       await gh.fetchRepos();
-      setState(() => _tokenVerified = true);
     } else {
       _snack(context, 'Connectez-vous via l\'onglet GitHub');
     }
@@ -288,13 +288,13 @@ class _GitHubTabState extends State<_GitHubTab> {
     if (_selectedRepo == null) return;
     setState(() => _deploying = true);
     // Save github fields first
-    await context.read<SitesProvider>().updateSite(widget.site['id'] as int, {
+    final provider = context.read<SitesProvider>();
+    await provider.updateSite(widget.site['id'] as int, {
       'github_repo': _selectedRepo,
       'github_branch': _selectedBranch ?? 'main',
       'github_token': _tokenCtrl.text.trim(),
     });
-    final result = await context
-        .read<SitesProvider>()
+    final result = await provider
         .deploySite(widget.site['id'] as int);
     if (mounted) {
       setState(() => _deploying = false);
@@ -317,7 +317,7 @@ class _GitHubTabState extends State<_GitHubTab> {
     final gh = context.watch<GitHubProvider>();
     return _TabScaffold(
       children: [
-        _SectionTitle('Connexion GitHub'),
+        const _SectionTitle('Connexion GitHub'),
         const SizedBox(height: 4),
         const Text(
           'Utilisez un Personal Access Token (PAT) avec les droits repo.',
@@ -363,7 +363,7 @@ class _GitHubTabState extends State<_GitHubTab> {
               style:
                   const TextStyle(color: AppColors.accentGreen, fontSize: 13)),
           const SizedBox(height: 20),
-          _SectionTitle('Sélectionner un dépôt'),
+          const _SectionTitle('Sélectionner un dépôt'),
           const SizedBox(height: 12),
           if (gh.isLoadingRepos)
             const Center(
@@ -387,7 +387,7 @@ class _GitHubTabState extends State<_GitHubTab> {
             ),
           if (_selectedRepo != null) ...[
             const SizedBox(height: 20),
-            _SectionTitle('Branche'),
+            const _SectionTitle('Branche'),
             const SizedBox(height: 10),
             if (gh.isLoadingBranches)
               const CircularProgressIndicator(color: AppColors.accent)
@@ -514,11 +514,11 @@ class _RepoTileState extends State<_RepoTile> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: widget.isSelected
-                ? AppColors.accent.withOpacity(0.1)
+                ? AppColors.accent.withValues(alpha: 0.1)
                 : _hov
                     ? AppColors.surfaceVariant
                     : Colors.transparent,
-            border: Border(bottom: BorderSide(color: AppColors.borderLight)),
+            border: const Border(bottom: BorderSide(color: AppColors.borderLight)),
           ),
           child: Row(
             children: [
@@ -584,7 +584,7 @@ class _BranchChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: selected
-                ? AppColors.accent.withOpacity(0.15)
+                ? AppColors.accent.withValues(alpha: 0.15)
                 : AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
@@ -696,7 +696,9 @@ class _HostingTabState extends State<_HostingTab> {
 
   @override
   void dispose() {
-    for (final c in [_webCont, _webPort, _apiCont, _apiPort]) c.dispose();
+    for (final c in [_webCont, _webPort, _apiCont, _apiPort]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -711,7 +713,7 @@ class _HostingTabState extends State<_HostingTab> {
     if (mounted) {
       setState(() => _saving = false);
       await widget.onRefresh();
-      _snack(context, 'Hébergement mis à jour', success: true);
+      if (mounted) _snack(context, 'Hébergement mis à jour', success: true);
     }
   }
 
@@ -719,7 +721,7 @@ class _HostingTabState extends State<_HostingTab> {
   Widget build(BuildContext context) {
     return _TabScaffold(
       children: [
-        _SectionTitle('Hébergement Web'),
+        const _SectionTitle('Hébergement Web'),
         const SizedBox(height: 4),
         const Text(
             'Conteneur Docker servant le frontend statique ou l\'application web.',
@@ -730,7 +732,7 @@ class _HostingTabState extends State<_HostingTab> {
           _FormField('Port hôte', _webPort, hint: '3000', number: true),
         ]),
         const SizedBox(height: 24),
-        _SectionTitle('Hébergement API'),
+        const _SectionTitle('Hébergement API'),
         const SizedBox(height: 4),
         const Text('Conteneur Docker servant l\'API backend.',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
@@ -821,7 +823,7 @@ class _DomainSslTabState extends State<_DomainSslTab> {
     return _TabScaffold(
       children: [
         // ── DNS Guide ─────────────────────────────────────────────────────
-        _SectionTitle('Configuration DNS'),
+        const _SectionTitle('Configuration DNS'),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
@@ -843,7 +845,7 @@ class _DomainSslTabState extends State<_DomainSslTab> {
                   name: domain.isNotEmpty ? domain : '@',
                   value: 'IP_DE_VOTRE_SERVEUR'),
               const SizedBox(height: 8),
-              _DnsRow(type: 'A', name: 'www', value: 'IP_DE_VOTRE_SERVEUR'),
+              const _DnsRow(type: 'A', name: 'www', value: 'IP_DE_VOTRE_SERVEUR'),
               const SizedBox(height: 12),
               const Text(
                 'Remplacez IP_DE_VOTRE_SERVEUR par l\'adresse IP publique de votre VPS. La propagation DNS peut prendre jusqu\'à 24h.',
@@ -856,16 +858,16 @@ class _DomainSslTabState extends State<_DomainSslTab> {
         // ── SSL / Certbot ─────────────────────────────────────────────────
         Row(
           children: [
-            _SectionTitle('Certificat SSL (Let\'s Encrypt)'),
+            const _SectionTitle('Certificat SSL (Let\'s Encrypt)'),
             const SizedBox(width: 10),
             if (ssl)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.accentGreen.withOpacity(0.1),
+                  color: AppColors.accentGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                   border:
-                      Border.all(color: AppColors.accentGreen.withOpacity(0.3)),
+                      Border.all(color: AppColors.accentGreen.withValues(alpha: 0.3)),
                 ),
                 child: const Text('Actif',
                     style: TextStyle(
@@ -908,13 +910,13 @@ class _DomainSslTabState extends State<_DomainSslTab> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: _certResult!.startsWith('✓')
-                  ? AppColors.accentGreen.withOpacity(0.1)
-                  : AppColors.accentRed.withOpacity(0.1),
+                  ? AppColors.accentGreen.withValues(alpha: 0.1)
+                  : AppColors.accentRed.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: _certResult!.startsWith('✓')
-                    ? AppColors.accentGreen.withOpacity(0.3)
-                    : AppColors.accentRed.withOpacity(0.3),
+                    ? AppColors.accentGreen.withValues(alpha: 0.3)
+                    : AppColors.accentRed.withValues(alpha: 0.3),
               ),
             ),
             child: Text(
@@ -961,7 +963,7 @@ class _DnsRowState extends State<_DnsRow> {
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.15),
+              color: AppColors.accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(widget.type,
@@ -976,7 +978,7 @@ class _DnsRowState extends State<_DnsRow> {
                 style: GoogleFonts.jetBrainsMono(
                     color: AppColors.textPrimary, fontSize: 13)),
           ),
-          Text('→', style: const TextStyle(color: AppColors.textMuted)),
+          const Text('→', style: TextStyle(color: AppColors.textMuted)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(widget.value,
@@ -1026,11 +1028,12 @@ class _NginxTabState extends State<_NginxTab> {
     final cfg = await context
         .read<SitesProvider>()
         .nginxPreview(widget.site['id'] as int);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _loading = false;
         _config = cfg;
       });
+    }
   }
 
   Future<void> _apply() async {
@@ -1053,7 +1056,7 @@ class _NginxTabState extends State<_NginxTab> {
   Widget build(BuildContext context) {
     return _TabScaffold(
       children: [
-        _SectionTitle('Reverse Proxy NGINX'),
+        const _SectionTitle('Reverse Proxy NGINX'),
         const SizedBox(height: 4),
         const Text(
           'Génère un bloc server{} NGINX qui redirige le trafic du domaine vers votre conteneur.',
@@ -1241,7 +1244,7 @@ class _Select extends StatelessWidget {
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             dropdownColor: AppColors.surfaceVariant,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             items: items.entries
@@ -1289,9 +1292,9 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1317,13 +1320,4 @@ void _snack(BuildContext context, String msg, {bool success = false}) {
   ));
 }
 
-extension _ListInsertBetween<T> on List<T> {
-  List<T> insertBetween(T separator) {
-    final result = <T>[];
-    for (int i = 0; i < length; i++) {
-      if (i > 0) result.add(separator);
-      result.add(this[i]);
-    }
-    return result;
-  }
-}
+

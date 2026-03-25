@@ -107,7 +107,7 @@ class _AppBottomBar extends StatelessWidget {
         onDestinationSelected: onTap,
         backgroundColor: AppColors.surface,
         // ignore: deprecated_member_use
-        indicatorColor: AppColors.accent.withOpacity(0.15),
+        indicatorColor: AppColors.accent.withValues(alpha: 0.15),
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,

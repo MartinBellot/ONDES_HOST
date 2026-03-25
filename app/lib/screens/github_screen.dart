@@ -21,13 +21,6 @@ class _GitHubScreenState extends State<GitHubScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
 
-  // ── Repo / branch / compose selection state ──────────────────────────────
-  Map<String, dynamic>? _selectedRepo;
-  String? _selectedBranch;
-  String? _selectedComposeFile;
-  Map<String, String> _envVars = {};
-  bool _isDeploying = false;
-
   final _repoSearchCtrl = TextEditingController();
   String _repoFilter = '';
   Timer? _authPollTimer;
@@ -129,12 +122,6 @@ class _GitHubScreenState extends State<GitHubScreen>
   // ── Repo click ─────────────────────────────────────────────────────────────
 
   void _selectRepo(Map<String, dynamic> repo) {
-    setState(() {
-      _selectedRepo = repo;
-      _selectedBranch = null;
-      _selectedComposeFile = null;
-      _envVars = {};
-    });
     final parts = (repo['full_name'] as String).split('/');
     context.read<GitHubProvider>().fetchBranches(parts[0], parts[1]);
     _showRepoBuildSheet(repo);
@@ -162,8 +149,6 @@ class _GitHubScreenState extends State<GitHubScreen>
       String composeFile,
       Map<String, String> envVars,
       String projectName) async {
-    setState(() => _isDeploying = true);
-    final parts = (repo['full_name'] as String).split('/');
     final stack = await context.read<StacksProvider>().createStack({
       'name': projectName,
       'github_repo': repo['full_name'],
@@ -173,12 +158,10 @@ class _GitHubScreenState extends State<GitHubScreen>
     });
     if (!mounted) return;
     if (stack == null) {
-      setState(() => _isDeploying = false);
       return;
     }
     final stackId = (stack['id'] as num?)?.toInt();
     if (stackId == null) {
-      setState(() => _isDeploying = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Erreur : id du stack manquant dans la réponse.'),
         backgroundColor: AppColors.accentRed,
@@ -196,7 +179,6 @@ class _GitHubScreenState extends State<GitHubScreen>
     );
     // Trigger deploy in background (WebSocket in StackDetailScreen will stream logs).
     context.read<StacksProvider>().deployStack(stackId);
-    setState(() => _isDeploying = false);
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -494,11 +476,11 @@ class _NotConnectedViewState extends State<_NotConnectedView> {
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+          borderSide: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppColors.accent.withOpacity(0.3)),
+          borderSide: BorderSide(color: AppColors.accent.withValues(alpha: 0.3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
@@ -648,7 +630,7 @@ class _WizardStep extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.accent.withOpacity(0.2)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -886,7 +868,7 @@ class _RepoCard extends StatelessWidget {
                 if (isPrivate)
                   _Chip(
                       label: 'Privé',
-                      color: AppColors.accentYellow.withOpacity(0.15),
+                      color: AppColors.accentYellow.withValues(alpha: 0.15),
                       textColor: AppColors.accentYellow),
                 const SizedBox(width: 4),
                 const Icon(Icons.chevron_right,
@@ -907,7 +889,7 @@ class _RepoCard extends StatelessWidget {
                 if (lang.isNotEmpty)
                   _Chip(
                       label: lang,
-                      color: AppColors.accent.withOpacity(0.1),
+                      color: AppColors.accent.withValues(alpha: 0.1),
                       textColor: AppColors.accent),
                 const Spacer(),
                 if (pushedAgo.isNotEmpty)
@@ -1448,7 +1430,7 @@ class _ChoiceChip extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.accent.withOpacity(0.2)
+              ? AppColors.accent.withValues(alpha: 0.2)
               : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
