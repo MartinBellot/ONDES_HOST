@@ -7,7 +7,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ondes_db}
       POSTGRES_USER: ${POSTGRES_USER:-ondes_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ondes_password}
-    # Port not exposed to host — internal access only (security + no conflict)
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ondes_user}"]
       interval: 10s
@@ -16,7 +17,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    # Port not exposed to host — internal access only
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -29,7 +31,7 @@ services:
       - ./api:/app
       - /var/run/docker.sock:/var/run/docker.sock
       - nginx_vhosts:/nginx-vhosts
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - letsencrypt:/etc/letsencrypt:ro
     ports:
       - "8000:8000"
     environment:
@@ -59,7 +61,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - nginx_vhosts:/etc/nginx/conf.d/vhosts
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - letsencrypt:/etc/letsencrypt:ro
       - certbot_webroot:/var/www/certbot:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -70,7 +72,7 @@ services:
   certbot:
     image: certbot/certbot:latest
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
+      - letsencrypt:/etc/letsencrypt
       - certbot_webroot:/var/www/certbot
     entrypoint: >
       /bin/sh -c "trap exit TERM;
@@ -90,4 +92,5 @@ services:
 volumes:
   postgres_data:
   nginx_vhosts:
+  letsencrypt:
   certbot_webroot:

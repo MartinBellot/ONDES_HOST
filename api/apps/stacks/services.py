@@ -271,6 +271,19 @@ def deploy_app(app_id: int):
     _broadcast(app_id, '🎉 Déploiement réussi ! Tous les containers sont démarrés.', 'success')
     _set_status(app, 'running')
 
+    # ── 4. Auto-detect nginx vhosts from repo configs ─────────────────────────
+    try:
+        from apps.nginx_manager.services import auto_detect_and_create_vhosts
+        detect = auto_detect_and_create_vhosts(app, project_dir, project_name)
+        if detect.get('created'):
+            _broadcast(app_id, f"🌐 {len(detect['created'])} VHost(s) NGINX détecté(s) et configuré(s).", 'success')
+        if detect.get('updated'):
+            _broadcast(app_id, f"🔄 {len(detect['updated'])} VHost(s) NGINX mis à jour depuis la config repo.")
+        if detect.get('message'):
+            pass  # No nginx config found — silent
+    except Exception as _e:
+        _broadcast(app_id, f'⚠️  Détection auto VHosts NGINX : {_e}', 'warning')
+
 
 def stop_app(app_id: int):
     app = ComposeApp.objects.get(pk=app_id)

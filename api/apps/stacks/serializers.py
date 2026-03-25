@@ -7,7 +7,8 @@ class ComposeAppSerializer(serializers.ModelSerializer):
         model = ComposeApp
         fields = '__all__'
         read_only_fields = ('user', 'status', 'status_message', 'project_dir',
-                            'last_deployed_at', 'created_at', 'updated_at')
+                            'last_deployed_at', 'created_at', 'updated_at',
+                            'webhook_token')
 
 
 class ComposeAppCreateSerializer(serializers.ModelSerializer):

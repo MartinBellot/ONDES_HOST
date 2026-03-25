@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/stacks_provider.dart';
@@ -47,7 +48,7 @@ class _StackDetailScreenState extends State<StackDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
       if (_tabController.index == 2 && _staticLogs.isEmpty) {
         _loadStaticLogs();
@@ -275,6 +276,7 @@ class _StackDetailScreenState extends State<StackDetailScreen>
             Tab(text: 'Variables'),
             Tab(text: 'Logs'),
             Tab(text: 'Domaine & SSL'),
+            Tab(text: 'CI/CD'),
           ],
         ),
       ),
@@ -332,6 +334,8 @@ class _StackDetailScreenState extends State<StackDetailScreen>
                 ),
                 // Domaine & SSL
                 _DomainSslTab(stackId: widget.stackId),
+                // CI/CD webhook
+                _WebhookTab(stack: _stack),
               ],
             ),
           ),
@@ -943,6 +947,7 @@ class _DomainSslTabState extends State<_DomainSslTab> {
   final _api = ApiService();
   List<dynamic> _vhosts = [];
   bool _isLoading = true;
+  bool _isDetecting = false;
 
   @override
   void initState() {
@@ -976,6 +981,63 @@ class _DomainSslTabState extends State<_DomainSslTab> {
         },
       ),
     );
+  }
+
+  Future<void> _showDetectDialog() async {
+    setState(() => _isDetecting = true);
+    Map<String, dynamic>? result;
+    String? error;
+    try {
+      result = await _api.detectNginx(widget.stackId);
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      if (mounted) setState(() => _isDetecting = false);
+    }
+
+    if (!mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Erreur : $error'),
+        backgroundColor: AppColors.accentRed,
+      ));
+      return;
+    }
+
+    final suggestions =
+        (result?['suggestions'] as List<dynamic>?) ?? [];
+
+    if (suggestions.isEmpty) {
+      final files = (result?['nginx_files_found'] as List<dynamic>?) ?? [];
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(files.isEmpty
+            ? 'Aucun fichier nginx trouvé dans le repo. Déployez d\'abord.'
+            : 'Fichiers nginx trouvés mais aucun VHost détectable.'),
+        duration: const Duration(seconds: 5),
+      ));
+      return;
+    }
+
+    final imported = await showDialog<List<Map<String, dynamic>>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _NginxDetectDialog(
+        stackId: widget.stackId,
+        suggestions: suggestions.cast<Map<String, dynamic>>(),
+        nginxFiles: (result?['nginx_files_found'] as List<dynamic>?)
+                ?.cast<String>() ??
+            [],
+      ),
+    );
+
+    if (imported != null && imported.isNotEmpty && mounted) {
+      setState(() => _vhosts = [...imported, ..._vhosts]);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${imported.length} VHost(s) importé(s).'),
+        backgroundColor: AppColors.accent,
+      ));
+    }
   }
 
   Future<void> _deleteVhost(int id, String domain) async {
@@ -1036,6 +1098,110 @@ class _DomainSslTabState extends State<_DomainSslTab> {
     );
   }
 
+  Future<void> _checkDns(int vhostId, String domain) async {
+    Map<String, dynamic>? result;
+    String? error;
+    try {
+      result = await _api.checkVhostDns(vhostId);
+    } catch (e) {
+      error = e.toString();
+    }
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Erreur DNS : $error'),
+        backgroundColor: AppColors.accentRed,
+      ));
+      return;
+    }
+    final propagated = result?['propagated'] == true;
+    final serverIp   = result?['server_ip'] as String? ?? '—';
+    final resolvedIp = result?['resolved_ip'] as String? ?? 'Non résolu';
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Row(
+          children: [
+            Icon(
+              propagated ? Icons.check_circle : Icons.warning_amber_rounded,
+              color: propagated ? AppColors.accentGreen : AppColors.accentYellow,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                propagated ? 'DNS propagé ✓' : 'DNS non encore propagé',
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 15),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(domain,
+                style: const TextStyle(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
+            const SizedBox(height: 12),
+            _DnsIpRow(label: 'IP du serveur',      value: serverIp,   ok: true),
+            const SizedBox(height: 4),
+            _DnsIpRow(label: 'IP résolue', value: resolvedIp,
+                ok: resolvedIp == serverIp),
+            if (!propagated) ...[   
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Enregistrement A à créer dans votre zone DNS :',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Icon(Icons.dns_outlined,
+                          size: 12, color: AppColors.textMuted),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '$domain   A   $serverIp',
+                          style: const TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 12,
+                              fontFamily: 'monospace'),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ]),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _refreshCertStatus(int id) async {
     try {
       final info = await _api.getCertStatus(id);
@@ -1081,6 +1247,25 @@ class _DomainSslTabState extends State<_DomainSslTab> {
                 tooltip: 'Rafraîchir',
                 onPressed: _loadVhosts,
               ),
+              if (_isDetecting)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: AppColors.accent),
+                )
+              else
+                TextButton.icon(
+                  onPressed: _showDetectDialog,
+                  icon: const Icon(Icons.auto_awesome, size: 15),
+                  label: const Text('Détecter', style: TextStyle(fontSize: 13)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                ),
+              const SizedBox(width: 4),
               FilledButton.icon(
                 onPressed: _showAddVhostDialog,
                 icon: const Icon(Icons.add, size: 16),
@@ -1095,27 +1280,41 @@ class _DomainSslTabState extends State<_DomainSslTab> {
           ),
         ),
         if (_vhosts.isEmpty)
-          const Expanded(
+          Expanded(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.language_outlined,
+                  const Icon(Icons.language_outlined,
                       size: 52, color: AppColors.textSecondary),
-                  SizedBox(height: 12),
-                  Text('Aucun domaine configuré',
+                  const SizedBox(height: 12),
+                  const Text('Aucun domaine configuré',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 15)),
-                  SizedBox(height: 6),
-                  Padding(
+                  const SizedBox(height: 6),
+                  const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 32),
                     child: Text(
-                      'Cliquez sur "Ajouter" pour lier un domaine à ce stack.',
+                      'Déployez d\'abord, puis cliquez "Détecter" pour importer\nautomatiquement depuis votre config nginx.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 13),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  if (_isDetecting)
+                    const CircularProgressIndicator(color: AppColors.accent)
+                  else
+                    FilledButton.icon(
+                      onPressed: _showDetectDialog,
+                      icon: const Icon(Icons.auto_awesome, size: 16),
+                      label: const Text('Détecter depuis le repo'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1133,9 +1332,275 @@ class _DomainSslTabState extends State<_DomainSslTab> {
                 onActivateSsl: () => _showSslSheet(_vhosts[i]),
                 onRefreshCert: () =>
                     _refreshCertStatus(_vhosts[i]['id'] as int),
+                onCheckDns: () => _checkDns(
+                    _vhosts[i]['id'] as int, _vhosts[i]['domain'] as String),
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+// ─── Nginx auto-detect dialog ─────────────────────────────────────────────────
+
+class _NginxDetectDialog extends StatefulWidget {
+  final int stackId;
+  final List<Map<String, dynamic>> suggestions;
+  final List<String> nginxFiles;
+
+  const _NginxDetectDialog({
+    required this.stackId,
+    required this.suggestions,
+    required this.nginxFiles,
+  });
+
+  @override
+  State<_NginxDetectDialog> createState() => _NginxDetectDialogState();
+}
+
+class _NginxDetectDialogState extends State<_NginxDetectDialog> {
+  final _api = ApiService();
+
+  /// Selected indices from suggestions to import
+  late final List<bool> _selected;
+
+  /// Editable upstream port for each suggestion
+  late final List<TextEditingController> _portControllers;
+
+  bool _isImporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = List.generate(
+      widget.suggestions.length,
+      (i) => widget.suggestions[i]['auto_create'] == true,
+    );
+    _portControllers = widget.suggestions.map((s) {
+      return TextEditingController(
+        text: (s['upstream_port'] ?? '').toString(),
+      );
+    }).toList();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _portControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _importSelected() async {
+    setState(() => _isImporting = true);
+    final imported = <Map<String, dynamic>>[];
+
+    for (var i = 0; i < widget.suggestions.length; i++) {
+      if (!_selected[i]) continue;
+      final s = widget.suggestions[i];
+      final port = int.tryParse(_portControllers[i].text.trim()) ?? 0;
+      if (port <= 0) continue;
+
+      if (s['already_exists'] == true) {
+        // Update port only
+        try {
+          final updated = await _api.updateVhost(
+            s['vhost_id'] as int? ?? -1,
+            {'upstream_port': port},
+          );
+          imported.add(updated);
+        } catch (_) {}
+        continue;
+      }
+
+      try {
+        final created = await _api.createVhost({
+          'stack':           widget.stackId,
+          'domain':          s['domain'],
+          'upstream_port':   port,
+          'service_label':   s['service_label'] ?? '',
+          'container_name':  s['container_name'] ?? '',
+          'ssl_enabled':     false,
+          'route_overrides': s['route_overrides'] ?? [],
+          'include_www':     s['include_www'] ?? false,
+        });
+        imported.add(created);
+      } catch (_) {}
+    }
+
+    if (mounted) {
+      setState(() => _isImporting = false);
+      Navigator.of(context).pop(imported);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canImport = _selected.any((v) => v) && !_isImporting;
+
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: const Row(
+        children: [
+          Icon(Icons.auto_awesome, color: AppColors.accent, size: 20),
+          SizedBox(width: 8),
+          Text('VHosts détectés',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        ],
+      ),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.nginxFiles.isNotEmpty) ...[
+              Text(
+                'Config trouvée dans : ${widget.nginxFiles.join(', ')}',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+            ],
+            const Text(
+              'Sélectionnez les domaines à importer :',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 340),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: List.generate(widget.suggestions.length, (i) {
+                    final s = widget.suggestions[i];
+                    final domain = s['domain'] as String? ?? '';
+                    final svc = s['service_label'] as String? ?? '';
+                    final alreadyExists = s['already_exists'] == true;
+                    final noPort = (s['upstream_port'] == null);
+                    final routeCount = (s['route_overrides'] as List?)?.length ?? 0;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _selected[i]
+                              ? AppColors.accent.withOpacity(0.5)
+                              : AppColors.border,
+                        ),
+                      ),
+                      child: CheckboxListTile(
+                        value: _selected[i],
+                        activeColor: AppColors.accent,
+                        onChanged: _isImporting
+                            ? null
+                            : (v) => setState(() => _selected[i] = v ?? false),
+                        title: Text(domain,
+                            style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (svc.isNotEmpty)
+                              Text('Service : $svc',
+                                  style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11)),
+                            if (alreadyExists)
+                              const Text('Déjà configuré — met à jour le port',
+                                  style: TextStyle(
+                                      color: AppColors.accentYellow,
+                                      fontSize: 11)),
+                            if (noPort)
+                              const Text(
+                                  'Port inconnu — conteneur non démarré ?',
+                                  style: TextStyle(
+                                      color: AppColors.accentRed,
+                                      fontSize: 11)),
+                    if (routeCount > 1)
+                              Text(
+                                '$routeCount routes détectées (multi-service)',
+                                style: const TextStyle(
+                                    color: AppColors.accent,
+                                    fontSize: 11)),
+                            if (s['include_www'] == true)
+                              const Text(
+                                'Redirection www détectée',
+                                style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11)),
+                            if (_selected[i]) ...[
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                height: 34,
+                                child: TextField(
+                                  controller: _portControllers[i],
+                                  enabled: !_isImporting,
+                                  keyboardType: TextInputType.number,
+                                  style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 12),
+                                  decoration: InputDecoration(
+                                    labelText: 'Port upstream',
+                                    labelStyle: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 11),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: const BorderSide(
+                                          color: AppColors.border),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: const BorderSide(
+                                          color: AppColors.border),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed:
+              _isImporting ? null : () => Navigator.of(context).pop(null),
+          child: const Text('Annuler',
+              style: TextStyle(color: AppColors.textSecondary)),
+        ),
+        FilledButton.icon(
+          onPressed: canImport ? _importSelected : null,
+          icon: _isImporting
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.download, size: 16),
+          label: const Text('Importer'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.accent,
+          ),
+        ),
       ],
     );
   }
@@ -1148,12 +1613,14 @@ class _VhostCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onActivateSsl;
   final VoidCallback onRefreshCert;
+  final VoidCallback onCheckDns;
 
   const _VhostCard({
     required this.vhost,
     required this.onDelete,
     required this.onActivateSsl,
     required this.onRefreshCert,
+    required this.onCheckDns,
   });
 
   static const _sslStatusColors = {
@@ -1185,6 +1652,8 @@ class _VhostCard extends StatelessWidget {
     final daysLeft     = vhost['cert_days_remaining'] as int?;
     final sslColor     = _sslStatusColors[sslStatus] ?? AppColors.textSecondary;
     final sslLabel     = _sslStatusLabels[sslStatus] ?? sslStatus;
+    final routes       = (vhost['route_overrides'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final includeWww   = vhost['include_www'] as bool? ?? false;
 
     // Parse expiry if set
     DateTime? expiry;
@@ -1254,6 +1723,22 @@ class _VhostCard extends StatelessWidget {
                 sslLabel,
                 style: TextStyle(color: sslColor, fontSize: 12),
               ),
+              if (routes.length > 1) ...[          
+                const SizedBox(width: 12),
+                const Icon(Icons.route, size: 13, color: AppColors.textMuted),
+                const SizedBox(width: 3),
+                Text(
+                  '${routes.length} routes',
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 11),
+                ),
+              ],
+              if (includeWww) ...[
+                const SizedBox(width: 12),
+                const Icon(Icons.language, size: 13, color: AppColors.textMuted),
+                const SizedBox(width: 3),
+                const Text('www', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              ],
             ],
           ),
           // ── Cert expiry info (when SSL active) ─────────────────────────
@@ -1300,6 +1785,21 @@ class _VhostCard extends StatelessWidget {
           // ── Actions ────────────────────────────────────────────────────
           Row(
             children: [
+              // DNS check
+              OutlinedButton.icon(
+                onPressed: onCheckDns,
+                icon: const Icon(Icons.dns_outlined, size: 13),
+                label: const Text('DNS', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  side: const BorderSide(color: AppColors.border, width: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(width: 8),
               if (!sslEnabled)
                 Expanded(
                   child: OutlinedButton.icon(
@@ -1406,8 +1906,9 @@ class _AddVhostDialogState extends State<_AddVhostDialog> {
   List<Map<String, dynamic>> _containers = [];
   bool   _loadingContainers = true;
   int?   _selectedContainerIdx;
-  bool   _manualMode = false;
-  bool   _isSaving   = false;
+  bool   _manualMode  = false;
+  bool   _isSaving    = false;
+  bool   _includeWww  = false;
   String? _error;
 
   @override
@@ -1481,6 +1982,7 @@ class _AddVhostDialogState extends State<_AddVhostDialog> {
         'service_label':  _labelCtrl.text.trim().isEmpty ? 'app' : _labelCtrl.text.trim(),
         'ssl_email':      _emailCtrl.text.trim(),
         'container_name': selectedContainer?['name'] ?? '',
+        'include_www':    _includeWww,
       });
       widget.onCreated(vhost);
       if (mounted) Navigator.pop(context);
@@ -1577,6 +2079,22 @@ class _AddVhostDialogState extends State<_AddVhostDialog> {
                 ctrl: _emailCtrl,
                 label: 'Email SSL (optionnel, pour Certbot)',
                 keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 6),
+              // www redirect toggle
+              SwitchListTile(
+                value: _includeWww,
+                onChanged: (v) => setState(() => _includeWww = v),
+                title: const Text('Rediriger www.domaine → domaine',
+                    style: TextStyle(
+                        color: AppColors.textPrimary, fontSize: 13)),
+                subtitle: const Text(
+                    'Ajoute un bloc nginx www + inclut www dans le cert SSL',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 11)),
+                activeColor: AppColors.accent,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
               ),
               if (_error != null) ...[
                 const SizedBox(height: 8),
@@ -2238,5 +2756,264 @@ class _SectionTitle extends StatelessWidget {
             fontWeight: FontWeight.w600,
             fontSize: 13),
       );
+}
+
+// ─── Webhook / CI·CD tab ─────────────────────────────────────────────────────
+
+class _WebhookTab extends StatelessWidget {
+  final Map<String, dynamic> stack;
+
+  const _WebhookTab({required this.stack});
+
+  @override
+  Widget build(BuildContext context) {
+    final token = stack['webhook_token'] as String? ?? '';
+    final stackId = stack['id']?.toString() ?? '';
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // ── Header ─────────────────────────────────────────────────────
+        const Row(
+          children: const [
+            Icon(Icons.webhook_outlined, color: AppColors.accent, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Déploiement automatique (CI/CD)',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Ajoutez ces secrets dans votre dépôt GitHub '
+          '(Settings → Secrets → Actions) pour déclencher '
+          'un redéploiement automatique à chaque push sur main.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        const SizedBox(height: 24),
+
+        // ── Secrets list ───────────────────────────────────────────────
+        _SecretRow(
+          name: 'ONDES_STACK_ID',
+          value: stackId,
+          hint: 'ID numérique de ce stack',
+        ),
+        const SizedBox(height: 12),
+        _SecretRow(
+          name: 'ONDES_WEBHOOK_TOKEN',
+          value: token,
+          hint: 'Token secret — ne le partagez pas',
+          isSecret: true,
+        ),
+        const SizedBox(height: 12),
+        _SecretRow(
+          name: 'ONDES_API_URL',
+          value: 'https://votre-serveur.com',
+          hint: 'URL racine de votre instance Ondes HOST',
+          readOnly: true,
+        ),
+
+        const SizedBox(height: 32),
+
+        // ── GitHub Action snippet ──────────────────────────────────────
+        const Text(
+          'Workflow GitHub Actions (.github/workflows/deploy.yml) :',
+          style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  _buildWorkflowSnippet(stackId),
+                  style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: AppColors.textSecondary),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy_outlined,
+                    size: 18, color: AppColors.textSecondary),
+                tooltip: 'Copier',
+                onPressed: () {
+                  Clipboard.setData(
+                      ClipboardData(text: _buildWorkflowSnippet(stackId)));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Workflow copié !'),
+                        duration: Duration(seconds: 2)),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.accentYellow.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: AppColors.accentYellow.withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline,
+                  color: AppColors.accentYellow, size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Le webhook ne nécessite pas de JWT. '
+                  'Gardez le token secret — il donne accès au redéploiement.',
+                  style: TextStyle(
+                      color: AppColors.accentYellow, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _buildWorkflowSnippet(String stackId) => '''name: Deploy to Ondes HOST
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger redeploy
+        run: |
+          curl -sf -X POST \\
+            -H "Authorization: Bearer \${{ secrets.ONDES_WEBHOOK_TOKEN }}" \\
+            "\${{ secrets.ONDES_API_URL }}/api/stacks/$stackId/webhook/"''';
+}
+
+// ─── Secret row widget ───────────────────────────────────────────────────────
+
+class _SecretRow extends StatefulWidget {
+  final String name;
+  final String value;
+  final String hint;
+  final bool isSecret;
+  final bool readOnly;
+
+  const _SecretRow({
+    required this.name,
+    required this.value,
+    required this.hint,
+    this.isSecret = false,
+    this.readOnly = false,
+  });
+
+  @override
+  State<_SecretRow> createState() => _SecretRowState();
+}
+
+class _SecretRowState extends State<_SecretRow> {
+  bool _visible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue =
+        widget.isSecret && !_visible ? '••••••••••••••••' : widget.value;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  widget.name,
+                  style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+              const Spacer(),
+              if (widget.isSecret)
+                IconButton(
+                  icon: Icon(
+                      _visible ? Icons.visibility_off : Icons.visibility,
+                      size: 16,
+                      color: AppColors.textSecondary),
+                  onPressed: () => setState(() => _visible = !_visible),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                ),
+              if (!widget.readOnly)
+                IconButton(
+                  icon: const Icon(Icons.copy_outlined,
+                      size: 16, color: AppColors.textSecondary),
+                  tooltip: 'Copier',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: widget.value));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text('${widget.name} copié !'),
+                          duration: const Duration(seconds: 2)),
+                    );
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            displayValue.isEmpty ? '(non disponible)' : displayValue,
+            style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: AppColors.textPrimary),
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (widget.hint.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              widget.hint,
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 

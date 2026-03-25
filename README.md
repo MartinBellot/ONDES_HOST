@@ -1,5 +1,6 @@
 # Ondes HOST — Infrastructure Dashboard
 
+Host quickly your Git projects !
 A modern, self-hosted alternative to cPanel/Plesk — manage Docker stacks, GitHub repos, NGINX, SSH and more from a single Flutter interface.
 
 ```
@@ -13,22 +14,6 @@ A modern, self-hosted alternative to cPanel/Plesk — manage Docker stacks, GitH
 
 ---
 
-## Features
-
-| Module | What it does |
-|---|---|
-| **Auth** | JWT login / register |
-| **GitHub Integration** | OAuth App link, repo browser, branch selector, auto-detect `docker-compose.yml` |
-| **Stacks** | Clone a GitHub repo, pick a compose file, set env vars and deploy — real-time streaming logs via WebSocket. nginx/certbot services in the repo's compose are automatically stripped and replaced by the platform's. |
-| **Docker Manager** | List, start, stop, restart, remove containers; live status |
-| **NGINX Manager** | Per-stack multi-domain vhost management — generate NGINX configs, reload without downtime, run Certbot on-demand, track cert expiry with auto-renewal every 12 h |
-| **Domaine & SSL** | "Domaine & SSL" tab in Stack Detail — add/remove vhosts, smart DNS propagation check, Auto-SSL Pipeline wizard (DNS check → Certbot), cert expiry countdown |
-| **DNS Propagation Checker** | Before activating SSL, the app automatically checks whether the domain's A record resolves to the server's public IP. Auto-polls every 15 s until propagated; shows server IP vs. resolved IP side by side. |
-| **Live Infrastructure Canvas** | Interactive zoomable canvas (0.3×–2.5×) showing all running Docker containers as draggable node cards, grouped by Compose project. CPU and memory bars update live every 3 s via a dedicated `ws/metrics/` WebSocket. Animated pulsing status dot and per-container resource thresholds (green < 40 %, yellow < 80 %, red ≥ 80 %). Click any node to open a side-panel with full details. |
-| **SSH Terminal** | Live WebSocket shell (Paramiko) |
-
----
-
 ## VPS Deployment — Single Line
 
 > **Tested on:** Ubuntu 20.04 / 22.04 / 24.04 · Debian 11/12 · CentOS/RHEL/Rocky/AlmaLinux 8+ · Fedora 37+  
@@ -37,6 +22,22 @@ A modern, self-hosted alternative to cPanel/Plesk — manage Docker stacks, GitH
 ```bash
 sudo bash deploy.sh
 ```
+
+## Features
+
+| Module | What it does |
+|---|---|
+| **Auth** | JWT login / register |
+| **GitHub Integration** | OAuth App link, repo browser, branch selector, auto-detect `docker-compose.yml` |
+| **Stacks** | Clone a GitHub repo, pick a compose file, set env vars and deploy — real-time streaming logs via WebSocket. nginx/certbot services in the repo's compose are automatically stripped and replaced by the platform's. |
+| **Docker Manager** | List, start, stop, restart, remove containers; live status |
+| **NGINX Manager** | Per-stack multi-domain vhost management — generate NGINX configs, reload without downtime, run Certbot on-demand, track cert expiry with auto-renewal every 12 h. **Multi-service stacks** (e.g. Next.js + Django API) are handled via `route_overrides`: the platform generates a single server block with multiple `location` entries, each proxying to the correct upstream port. **`include_www`** flag auto-generates a `www.{domain}` redirect server block (HTTP + HTTPS) and adds `-d www.{domain}` to the Certbot request. |
+| **Domaine & SSL** | "Domaine & SSL" tab in Stack Detail — add/remove vhosts, standalone **DNS check** button per vhost, smart DNS propagation check, Auto-SSL Pipeline wizard (DNS check → Certbot), cert expiry countdown |
+| **DNS Propagation Checker** | Each vhost card has a dedicated **Vérifier DNS** button. Before activating SSL, the app also automatically checks whether the domain's A record resolves to the server's public IP. Auto-polls every 15 s until propagated; shows server IP vs. resolved IP side by side. |
+| **Auto-detect NGINX from repo** | After every deploy, Ondes HOST scans the cloned repo's NGINX config files, extracts domains, location routes and upstream ports, maps service names to running container ports, and auto-creates or updates `NginxVhost` records — multi-service configs included. Also auto-detects `/static/` and `/media/` routes for Django services in multi-port stacks, and detects `www.` redirect-only server blocks to set `include_www` automatically. The **"Détecter"** button in the Domaine & SSL tab also lets you run the scan on demand without writing to the DB. |
+| **Live Infrastructure Canvas** | Interactive zoomable canvas (0.3×–2.5×) showing all running Docker containers as draggable node cards, grouped by Compose project. CPU and memory bars update live every 3 s via a dedicated `ws/metrics/` WebSocket. Animated pulsing status dot and per-container resource thresholds (green < 40 %, yellow < 80 %, red ≥ 80 %). Click any node to open a side-panel with full details. |
+| **SSH Terminal** | Live WebSocket shell (Paramiko) || **CI/CD Webhooks** | Each deployed stack has a **CI/CD** tab. Generate a secret token, copy the webhook URL, and add it to a GitHub Actions workflow (or any HTTP client). `POST /api/stacks/{id}/webhook/` with `Authorization: Bearer <token>` triggers a fresh deploy and streams logs. |
+---
 
 ### What the script does, step by step
 
@@ -209,6 +210,8 @@ Credentials are stored in the database via the `GitHubOAuthConfig` singleton mod
 | `GET`  | `/api/stacks/{id}/env/` | Get env vars |
 | `PUT`  | `/api/stacks/{id}/env/` | Update env vars |
 | `GET`  | `/api/stacks/{id}/vhosts/` | List NGINX vhosts for this stack |
+| `POST` | `/api/stacks/{id}/webhook/` | Trigger re-deploy via GitHub Actions — `Authorization: Bearer <webhook_token>` |
+| `GET`  | `/api/stacks/{id}/detect-nginx/` | Dry-run NGINX auto-detect — returns suggestions without writing to DB |
 
 ### NGINX
 | Method | Endpoint | Description |
@@ -218,12 +221,16 @@ Credentials are stored in the database via the `GitHubOAuthConfig` singleton mod
 | `GET`    | `/api/nginx/vhosts/{id}/` | Vhost detail |
 | `PATCH`  | `/api/nginx/vhosts/{id}/` | Update vhost (rewrites config) |
 | `DELETE` | `/api/nginx/vhosts/{id}/` | Delete vhost + reload |
-| `POST`   | `/api/nginx/vhosts/{id}/certbot/` | Run Certbot for this domain; body: `{"email": "…"}` |
+| `POST`   | `/api/nginx/vhosts/{id}/certbot/` | Run Certbot for this domain; body: `{"email": "…"}` — adds `-d www.{domain}` automatically when `include_www=true` |
 | `GET`    | `/api/nginx/vhosts/{id}/cert-status/` | Refresh cert expiry from disk |
 | `GET`    | `/api/nginx/vhosts/{id}/check-dns/` | Check DNS propagation — returns `{domain, server_ip, resolved_ip, propagated}` |
 | `POST`   | `/api/nginx/preview/` | *(legacy)* Preview raw config |
 | `POST`   | `/api/nginx/configure/` | *(legacy)* Write raw config + reload |
 | `POST`   | `/api/nginx/certbot/` | *(legacy)* Run Certbot (generic) |
+
+> **`route_overrides`** — When a vhost serves multiple upstream services (e.g. `/api/ → Django :8001`, `/ → Next.js :3001`), store them as a JSON array in the `route_overrides` field. The platform generates a single NGINX `server` block with one `location` entry per path, sorted most-specific-first. The main `upstream_port` is used as a fallback when `route_overrides` is empty.
+
+> **Site-internal nginx pattern** — For complex stacks (e.g. Flutter admin SPA, HLS video, fine-grained caching), the recommended pattern is to keep the **repo's own nginx** running on an internal port (e.g. `8081:80`) and create a **single vhost** pointing to that port — no `route_overrides` needed. Ondes HOST handles TLS, HSTS, ACME renewals and `www` redirects; all internal routing complexity stays in the repo's nginx config. The repo's nginx must: listen on port 80 only (no SSL blocks), use `X-Forwarded-Proto $http_x_forwarded_proto` instead of `$scheme`, and remove its own certbot service.
 
 ### WebSocket endpoints
 | URL | Purpose |
@@ -251,3 +258,34 @@ Credentials are stored in the database via the `GitHubOAuthConfig` singleton mod
 | State management | Provider |
 | HTTP client | Dio |
 | Fonts | Google Fonts — Inter + JetBrains Mono |
+
+---
+
+## Migrating an existing site to Ondes HOST
+
+### Preparing the site's repo
+
+Sites that have their own nginx container (e.g. a complex Next.js + Django + Flutter admin stack) should use the **site-internal nginx pattern**:
+
+1. **Change the nginx port mapping** from `80:80 / 443:443` to a unique host port (e.g. `8081:80`). Each site must use a different port.
+2. **Remove the certbot service** — Ondes HOST manages all TLS.
+3. **Remove SSL server blocks** from the site's nginx config — keep only `listen 80`.
+4. **Replace `$scheme`** with `$http_x_forwarded_proto` in all `proxy_set_header X-Forwarded-Proto` directives, so upstream Django/Node.js services see `https` correctly.
+5. **Remove the ACME challenge location block** — Ondes HOST's nginx handles it.
+6. **Remove certbot volume mounts** from the nginx service.
+
+For Django services in the repo:
+- Add `whitenoise` to `requirements.txt` and insert `WhiteNoiseMiddleware` just after `SecurityMiddleware`.
+- Set `STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'`.
+- Serve media unconditionally: `urlpatterns += [re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT})]`.
+- Use `DB_PATH` env var for `DATABASES['default']['NAME']` and mount a named volume to persist the SQLite file.
+- Set `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')` and `SECURE_SSL_REDIRECT = False`.
+
+### Deploying via Ondes HOST (⚠️ KEEP YOUR DATA IN SAFETY, do backups )
+
+1. Upload the repo through the **Stacks** tab (GitHub import or direct deploy). 
+2. Ondes HOST automatically strips any service named/imaged as `nginx` or `certbot` from the compose file — the site's internal nginx is **not** stripped because it now uses a custom image build, not the `nginx:*` image name... unless you rename it to something other than `nginx` (e.g. `web`). Alternatively, just point Ondes HOST directly to the internal port with a manually created vhost.
+3. In the **Domaine & SSL** tab, create a vhost pointing to the site's internal nginx port (e.g. `8081`). No `route_overrides` needed — all routing is handled by the site's nginx.
+4. Enable **include www** if the domain should respond on `www.` too.
+5. Verify DNS propagation, then click **Activer SSL** — Certbot runs automatically.
+

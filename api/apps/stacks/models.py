@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -48,6 +50,15 @@ class ComposeApp(models.Model):
         help_text='SHA du commit actuellement déployé (capturé après chaque déploiement)',
     )
     last_deployed_at = models.DateTimeField(null=True, blank=True)
+
+    # ── Webhook CI/CD ─────────────────────────────────────────────────────────
+    webhook_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        help_text='Token secret pour déclencher un redéploiement depuis GitHub Actions',
+    )
+
     created_at      = models.DateTimeField(auto_now_add=True)
     updated_at      = models.DateTimeField(auto_now=True)
 

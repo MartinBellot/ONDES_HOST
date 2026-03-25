@@ -406,5 +406,15 @@ class ApiService {
     final res = await _dio.get('/nginx/vhosts/$vhostId/check-dns/');
     return res.data as Map<String, dynamic>;
   }
+
+  // ── Nginx auto-detection ──────────────────────────────────────────────────
+
+  /// Scan the stack's cloned repo for nginx configs and return VHost suggestions
+  /// without writing anything to the DB.
+  /// Returns: {project_name, nginx_files_found, suggestions: [...]}
+  Future<Map<String, dynamic>> detectNginx(int stackId) async {
+    final res = await _dio.get('/stacks/$stackId/detect-nginx/');
+    return res.data as Map<String, dynamic>;
+  }
 }
 

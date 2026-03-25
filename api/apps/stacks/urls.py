@@ -9,6 +9,8 @@ from .views import (
     ComposeAppVhostsView,
     ComposeAppContainersView,
     ComposeAppUpdateCheckView,
+    ComposeAppWebhookDeployView,
+    ComposeAppDetectNginxView,
 )
 
 urlpatterns = [
@@ -21,4 +23,6 @@ urlpatterns = [
     path('<int:pk>/vhosts/',          ComposeAppVhostsView.as_view(),     name='stack-vhosts'),
     path('<int:pk>/containers/',      ComposeAppContainersView.as_view(), name='stack-containers'),
     path('<int:pk>/check-update/',    ComposeAppUpdateCheckView.as_view(), name='stack-check-update'),
+    path('<int:pk>/webhook/',         ComposeAppWebhookDeployView.as_view(), name='stack-webhook'),
+    path('<int:pk>/detect-nginx/',    ComposeAppDetectNginxView.as_view(),   name='stack-detect-nginx'),
 ]

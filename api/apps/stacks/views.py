@@ -212,3 +212,81 @@ class ComposeAppUpdateCheckView(APIView):
             'latest_sha_short': latest_sha[:8] if latest_sha else '',
             'update_available': (not up_to_date) if current_sha else None,
         })
+
+
+class ComposeAppWebhookDeployView(APIView):
+    """
+    POST /api/stacks/<pk>/webhook/
+    Triggered by GitHub Actions (or any CI). No JWT required.
+    Authenticates via the per-stack webhook_token in the Authorization header:
+        Authorization: Bearer <webhook_token>
+    Returns 200 immediately and deploys asynchronously in a background thread.
+    """
+    permission_classes = []   # No JWT — custom token auth below
+    authentication_classes = []
+
+    def post(self, request, pk):
+        # Extract bearer token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return Response({'error': 'Token manquant'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        provided_token = auth_header.split(' ', 1)[1].strip()
+
+        try:
+            app = ComposeApp.objects.get(pk=pk)
+        except ComposeApp.DoesNotExist:
+            return Response({'error': 'Projet introuvable'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Compare tokens using constant-time comparison to prevent timing attacks
+        import hmac
+        if not hmac.compare_digest(str(app.webhook_token), provided_token):
+            return Response({'error': 'Token invalide'}, status=status.HTTP_403_FORBIDDEN)
+
+        if app.status in ('cloning', 'building', 'starting'):
+            return Response(
+                {'status': 'already_deploying', 'app_id': app.id},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        threading.Thread(target=services.deploy_app, args=(app.id,), daemon=True).start()
+        return Response({'status': 'deploying', 'app_id': app.id, 'app_name': app.name})
+
+
+class ComposeAppDetectNginxView(APIView):
+    """
+    GET /api/stacks/<pk>/detect-nginx/
+
+    Scans the stack's cloned repo for nginx config files, matches discovered
+    service names to running containers, and returns a list of VHost suggestions
+    — without writing anything to the DB.  The Flutter UI presents the list and
+    lets the user confirm which ones to import.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        app = ComposeApp.objects.filter(pk=pk, user=request.user).first()
+        if not app:
+            return Response({'error': 'Projet introuvable'}, status=status.HTTP_404_NOT_FOUND)
+
+        project_dir = app.project_dir or ''
+        if not project_dir or not __import__('os').path.isdir(project_dir):
+            return Response({'error': 'Répertoire du projet introuvable. Déployez d\'abord.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        project_name = f'ondes_{app.id}_{app.name.lower().replace(" ", "_")}'
+
+        from apps.nginx_manager.services import scan_project_nginx_configs, build_vhost_suggestions
+        from apps.nginx_manager.models import NginxVhost
+
+        parsed_files = scan_project_nginx_configs(project_dir)
+        containers = services.get_stack_containers(project_name)
+
+        existing_domains = set(NginxVhost.objects.filter(stack=app).values_list('domain', flat=True))
+        suggestions = build_vhost_suggestions(parsed_files, containers, existing_domains)
+
+        return Response({
+            'project_name': project_name,
+            'nginx_files_found': [f['file'] for f in parsed_files],
+            'suggestions': suggestions,
+        })
+

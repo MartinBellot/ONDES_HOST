@@ -10,7 +10,7 @@ class NginxVhostSerializer(serializers.ModelSerializer):
         model  = NginxVhost
         fields = [
             'id', 'stack', 'service_label', 'domain', 'upstream_port',
-            'container_name',
+            'container_name', 'route_overrides', 'include_www',
             'ssl_enabled', 'ssl_email', 'ssl_status', 'ssl_expires_at',
             'certbot_output', 'cert_days_remaining',
             'created_at', 'updated_at',
@@ -32,7 +32,7 @@ class NginxVhostCreateSerializer(serializers.ModelSerializer):
     """Write serializer for creating/updating a vhost."""
     class Meta:
         model  = NginxVhost
-        fields = ['stack', 'service_label', 'domain', 'upstream_port', 'ssl_email', 'container_name']
+        fields = ['stack', 'service_label', 'domain', 'upstream_port', 'ssl_email', 'container_name', 'route_overrides', 'include_www']
 
     def validate_domain(self, value):
         # Basic sanity — no spaces, no protocol prefix

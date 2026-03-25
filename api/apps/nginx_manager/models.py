@@ -39,6 +39,24 @@ class NginxVhost(models.Model):
     ssl_expires_at  = models.DateTimeField(null=True, blank=True)
     certbot_output  = models.TextField(blank=True)
 
+    # ── Multi-service routing ─────────────────────────────────────────────────
+    # When a repo nginx config routes different paths to different services
+    # (e.g. /api/ → Django, / → Next.js) this stores the full routing map:
+    #   [{"path": "/api/", "upstream_port": 8001},
+    #    {"path": "/",     "upstream_port": 3001}]
+    # Routes are sorted most-specific-first at write time.
+    # When empty, falls back to the single upstream_port for location /.
+    route_overrides = models.JSONField(default=list, blank=True)
+
+    # ── www redirect ─────────────────────────────────────────────────────────
+    # When True, a separate server block for www.{domain} is generated that
+    # redirects all traffic to the canonical {domain}.  For SSL, certbot is
+    # also requested with "-d www.{domain}" so the cert covers both names.
+    include_www = models.BooleanField(
+        default=False,
+        help_text='Génère un bloc nginx www.domain qui redirige vers domain (+ cert www).',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

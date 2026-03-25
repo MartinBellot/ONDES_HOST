@@ -53,6 +53,8 @@ class NginxVhostListCreateView(generics.ListCreateAPIView):
             domain=vhost.domain,
             upstream_port=vhost.upstream_port,
             ssl=False,
+            route_overrides=vhost.route_overrides or None,
+            include_www=vhost.include_www,
         )
         if result['status'] == 'error':
             vhost.delete()
@@ -96,6 +98,8 @@ class NginxVhostDetailView(generics.RetrieveUpdateDestroyAPIView):
             domain=vhost.domain,
             upstream_port=vhost.upstream_port,
             ssl=vhost.ssl_enabled,
+            route_overrides=vhost.route_overrides or None,
+            include_www=vhost.include_www,
         )
         if result['status'] == 'error':
             return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -143,7 +147,7 @@ class NginxVhostCertbotView(APIView):
         vhost.ssl_status = 'pending'
         vhost.save(update_fields=['ssl_email', 'ssl_status'])
 
-        result = services.run_certbot_for_domain(vhost.domain, email)
+        result = services.run_certbot_for_domain(vhost.domain, email, include_www=vhost.include_www)
 
         if result['status'] == 'error':
             vhost.ssl_status = 'error'
@@ -164,6 +168,8 @@ class NginxVhostCertbotView(APIView):
             domain=vhost.domain,
             upstream_port=vhost.upstream_port,
             ssl=True,
+            route_overrides=vhost.route_overrides or None,
+            include_www=vhost.include_www,
         )
 
         # Refresh cert expiry from disk
