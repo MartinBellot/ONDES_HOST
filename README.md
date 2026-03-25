@@ -289,3 +289,4 @@ For Django services in the repo:
 4. Enable **include www** if the domain should respond on `www.` too.
 5. Verify DNS propagation, then click **Activer SSL** — Certbot runs automatically.
 
+> 🌐 **Site officiel :** [**https://ondes.pro**](https://ondes.pro)
