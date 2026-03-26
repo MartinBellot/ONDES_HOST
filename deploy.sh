@@ -18,6 +18,13 @@ fatal()   { error "$*"; exit 1; }
 step()    { echo -e "\n${BOLD}${BLUE}━━━  $*  ━━━${NC}"; }
 ask()     { echo -e "${YELLOW}[?]${NC}    $*"; }  # prompt prefix (cosmetic)
 
+# ── Non-interactive / CI mode ────────────────────────────────────────────────
+# Set ONDES_CI=1 to skip all interactive prompts (used by send_to_vps.sh).
+#   - System nginx / conflicting web servers: auto-removed
+#   - Superuser creation: skipped (create manually afterwards)
+#   - UFW: auto-configured with recommended rules
+ONDES_CI="${ONDES_CI:-0}"
+
 banner() {
   echo -e "${BOLD}${CYAN}"
   cat << 'ONDES'
@@ -182,9 +189,14 @@ fi
 
 if $NGINX_BINARY_FOUND; then
   echo ""
-  ask "Remove system NGINX now? (required to free ports 80/443) [Y/n]: "
-  read -r REMOVE_NGINX
-  REMOVE_NGINX="${REMOVE_NGINX:-Y}"
+  if [[ "$ONDES_CI" == "1" ]]; then
+    REMOVE_NGINX="Y"
+    info "[CI] Auto-removing system NGINX."
+  else
+    ask "Remove system NGINX now? (required to free ports 80/443) [Y/n]: "
+    read -r REMOVE_NGINX
+    REMOVE_NGINX="${REMOVE_NGINX:-Y}"
+  fi
 
   if [[ "$REMOVE_NGINX" =~ ^[Yy]$ ]]; then
     info "Stopping and disabling system NGINX…"
@@ -217,8 +229,13 @@ fi
 for ws in apache2 httpd lighttpd caddy; do
   if systemctl is-active --quiet "$ws" 2>/dev/null; then
     warn "Service '${ws}' is active and may hold port 80/443."
-    ask "Stop and disable '${ws}'? [Y/n]: "
-    read -r STOP_WS; STOP_WS="${STOP_WS:-Y}"
+    if [[ "$ONDES_CI" == "1" ]]; then
+      STOP_WS="Y"
+      info "[CI] Auto-stopping ${ws}."
+    else
+      ask "Stop and disable '${ws}'? [Y/n]: "
+      read -r STOP_WS; STOP_WS="${STOP_WS:-Y}"
+    fi
     if [[ "$STOP_WS" =~ ^[Yy]$ ]]; then
       systemctl stop    "$ws" 2>/dev/null || true
       systemctl disable "$ws" 2>/dev/null || true
@@ -588,8 +605,14 @@ success "Migrations applied"
 step "Admin superuser"
 
 echo ""
-ask "Create a Django superuser now? (needed to access /admin) [Y/n]: "
-read -r CREATE_SU; CREATE_SU="${CREATE_SU:-Y}"
+if [[ "$ONDES_CI" == "1" ]]; then
+  CREATE_SU="n"
+  info "[CI] Superuser creation skipped."
+  info "     Run later:  docker compose exec api python manage.py createsuperuser"
+else
+  ask "Create a Django superuser now? (needed to access /admin) [Y/n]: "
+  read -r CREATE_SU; CREATE_SU="${CREATE_SU:-Y}"
+fi
 if [[ "$CREATE_SU" =~ ^[Yy]$ ]]; then
   $DC exec api python manage.py createsuperuser
   success "Superuser created"
@@ -607,8 +630,13 @@ if command -v ufw &>/dev/null; then
   UFW_STATUS=$(ufw status 2>/dev/null | head -1)
   info "Current UFW status: $UFW_STATUS"
   echo ""
-  ask "Configure UFW to allow ports 22 (SSH), 80 (HTTP), 443 (HTTPS) and block direct DB/cache access? [Y/n]: "
-  read -r CONF_UFW; CONF_UFW="${CONF_UFW:-Y}"
+  if [[ "$ONDES_CI" == "1" ]]; then
+    CONF_UFW="Y"
+    info "[CI] Auto-configuring UFW."
+  else
+    ask "Configure UFW to allow ports 22 (SSH), 80 (HTTP), 443 (HTTPS) and block direct DB/cache access? [Y/n]: "
+    read -r CONF_UFW; CONF_UFW="${CONF_UFW:-Y}"
+  fi
   if [[ "$CONF_UFW" =~ ^[Yy]$ ]]; then
     ufw allow 22/tcp   comment "SSH"
     ufw allow 80/tcp   comment "HTTP — Ondes NGINX"

@@ -1,133 +1,273 @@
-# Ondes HOST — Infrastructure Dashboard
+<div align="center">
 
-Host quickly your Git projects !
-A modern, self-hosted alternative to cPanel/Plesk — manage Docker stacks, GitHub repos, NGINX, SSH and more from a single Flutter interface.
+# Ondes HOST
 
-```
-.
-├── api/          # Django 5 backend (REST + WebSocket via Channels/Daphne)
-├── app/          # Flutter frontend (macOS / web)
-├── docker-compose.yml
-├── .env.example
-└── .gitignore
-```
+### Your Self-Hosted Infrastructure — Deployed in One Command.
+
+**A modern, open-source alternative to cPanel/Coolify.**  
+Deploy GitHub projects as Docker Stacks, manage NGINX vhosts, issue SSL certs, run SSH sessions, and monitor your infrastructure — all from a beautiful Flutter interface.
+
+[![Django](https://img.shields.io/badge/Django-5.0-092E20?style=flat-square&logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![Flutter](https://img.shields.io/badge/Flutter-3.43-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![Let's Encrypt](https://img.shields.io/badge/SSL-Let's%20Encrypt-003A70?style=flat-square&logo=letsencrypt&logoColor=white)](https://letsencrypt.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+
+🌐 **[ondes.pro](https://ondes.pro)**
+
+</div>
 
 ---
 
-## VPS Deployment — Single Line
+<!-- SCREENSHOT: Hero shot of the Infrastructure Canvas with live container metrics -->
+> 📸 *Screenshot placeholder — Infrastructure Canvas with live CPU/MEM metrics*
 
-> **Tested on:** Ubuntu 20.04 / 22.04 / 24.04 · Debian 11/12 · CentOS/RHEL/Rocky/AlmaLinux 8+ · Fedora 37+  
-> **Requirements:** root access (or sudo), 1 GB RAM, 5 GB free disk, ports 80 & 443 available.
+---
+
+## ✨ Why Ondes HOST?
+
+You've got a VPS. You've got GitHub repos. You want them running behind HTTPS **without** wrestling with config files at 2 AM.
+
+Ondes HOST gives you:
+
+- 🚀 **One-command VPS setup** — from bare metal to fully running dashboard in minutes
+- 🐙 **GitHub → Docker in 3 clicks** — browse your repos, pick a branch, hit Deploy
+- 🔒 **Automatic SSL** — DNS check → Certbot → HTTPS, all from the UI
+- 📡 **Live everything** — deploy logs, container metrics, and SSH, all over WebSocket
+- 🗺️ **Visual canvas** — see your whole infrastructure at a glance, draggable and zoomable
+- 🪝 **CI/CD webhooks** — plug into GitHub Actions for zero-touch continuous deployment
+
+---
+
+## 📸 Screenshots
+
+<!-- Replace the placeholder comments below with actual screenshot images once available -->
+
+| | |
+|---|---|
+| <!-- SCREENSHOT: Dashboard overview with container count cards and Docker health banner --> ![Dashboard](.github/screenshots/dashboard.png) | <!-- SCREENSHOT: GitHub repo browser with branch selector and deploy button --> ![GitHub Integration](.github/screenshots/github.png) |
+| <!-- SCREENSHOT: Stack Detail — Logs tab with real-time deploy output --> ![Deploy Logs](.github/screenshots/deploy_logs.png) | <!-- SCREENSHOT: Domaine & SSL tab with DNS propagation checker --> ![SSL Manager](.github/screenshots/ssl.png) |
+| <!-- SCREENSHOT: Infrastructure Canvas — zoomable graph of all running containers --> ![Canvas](.github/screenshots/canvas.png) | <!-- SCREENSHOT: SSH Terminal screen with live WebSocket shell --> ![SSH Terminal](.github/screenshots/ssh.png) |
+
+> 📌 *Screenshots coming soon! Run the app locally and send us yours — see [CONTRIBUTING.md](CONTRIBUTING.md).*
+
+---
+
+## 🚀 Deploy to VPS — One Line
 
 ```bash
 sudo bash deploy.sh
 ```
 
-## Features
+> **Tested on:** Ubuntu 20.04/22.04/24.04 · Debian 11/12 · CentOS/RHEL/Rocky/AlmaLinux 8+ · Fedora 37+
+> **Requirements:** root access, 1 GB RAM, 5 GB free disk, ports 80 & 443 free.
 
-| Module | What it does |
-|---|---|
-| **Auth** | JWT login / register |
-| **GitHub Integration** | OAuth App link, repo browser, branch selector, auto-detect `docker-compose.yml` |
-| **Stacks** | Clone a GitHub repo, pick a compose file, set env vars and deploy — real-time streaming logs via WebSocket. nginx/certbot services in the repo's compose are automatically stripped and replaced by the platform's. |
-| **Docker Manager** | List, start, stop, restart, remove containers; live status |
-| **NGINX Manager** | Per-stack multi-domain vhost management — generate NGINX configs, reload without downtime, run Certbot on-demand, track cert expiry with auto-renewal every 12 h. **Multi-service stacks** (e.g. Next.js + Django API) are handled via `route_overrides`: the platform generates a single server block with multiple `location` entries, each proxying to the correct upstream port. **`include_www`** flag auto-generates a `www.{domain}` redirect server block (HTTP + HTTPS) and adds `-d www.{domain}` to the Certbot request. |
-| **Domaine & SSL** | "Domaine & SSL" tab in Stack Detail — add/remove vhosts, standalone **DNS check** button per vhost, smart DNS propagation check, Auto-SSL Pipeline wizard (DNS check → Certbot), cert expiry countdown |
-| **DNS Propagation Checker** | Each vhost card has a dedicated **Vérifier DNS** button. Before activating SSL, the app also automatically checks whether the domain's A record resolves to the server's public IP. Auto-polls every 15 s until propagated; shows server IP vs. resolved IP side by side. |
-| **Auto-detect NGINX from repo** | After every deploy, Ondes HOST scans the cloned repo's NGINX config files, extracts domains, location routes and upstream ports, maps service names to running container ports, and auto-creates or updates `NginxVhost` records — multi-service configs included. Also auto-detects `/static/` and `/media/` routes for Django services in multi-port stacks, and detects `www.` redirect-only server blocks to set `include_www` automatically. The **"Détecter"** button in the Domaine & SSL tab also lets you run the scan on demand without writing to the DB. |
-| **Live Infrastructure Canvas** | Interactive zoomable canvas (0.3×–2.5×) showing all running Docker containers as draggable node cards, grouped by Compose project. CPU and memory bars update live every 3 s via a dedicated `ws/metrics/` WebSocket. Animated pulsing status dot and per-container resource thresholds (green < 40 %, yellow < 80 %, red ≥ 80 %). Click any node to open a side-panel with full details. |
-| **SSH Terminal** | Live WebSocket shell (Paramiko) || **CI/CD Webhooks** | Each deployed stack has a **CI/CD** tab. Generate a secret token, copy the webhook URL, and add it to a GitHub Actions workflow (or any HTTP client). `POST /api/stacks/{id}/webhook/` with `Authorization: Bearer <token>` triggers a fresh deploy and streams logs. |
----
-
-### What the script does, step by step
+<details>
+<summary><strong>⚙️ What the script does (19 steps)</strong></summary>
 
 | Step | Action |
 |---|---|
 | 1 | **Privilege check** — aborts immediately if not run as root |
-| 2 | **OS detection** — auto-selects `apt-get` / `dnf` for Ubuntu, Debian, CentOS, RHEL, Rocky, AlmaLinux, Fedora |
+| 2 | **OS detection** — auto-selects `apt-get` / `dnf` for all supported distros |
 | 3 | **Resource sanity** — warns if < 1 GB RAM or < 5 GB free disk |
 | 4 | **Port audit** — detects anything already bound to 80, 443, 3000, 8000, 5432, 6379 |
-| 5 | **System NGINX removal** — detects binary + installed packages; stops, disables, and purges system NGINX (which would conflict with the Dockerised reverse-proxy on ports 80/443); also stops Apache / Lighttpd / Caddy if detected |
-| 6 | **System dependencies** — installs `curl`, `git`, `openssl`, `ca-certificates`, `gnupg` |
-| 7 | **Docker Engine** — skips if already installed; otherwise runs the official `get.docker.com` bootstrap, then `systemctl enable --now docker` |
-| 8 | **Docker Compose v2** — installs the `docker-compose-plugin` via the distro package manager or downloads the standalone binary; validates with `docker compose version` |
-| 9 | **Project directory** — uses the current folder if a `docker-compose.yml` is present; otherwise clones the repo into `/opt/ondes-host` (override with `ONDES_DIR`) |
-| 10 | **`.env` security validation** (interactive) |
-| | — creates `.env` from `.env.example` if missing |
-| | — **SECRET_KEY**: auto-generates 100-char hex key if default/empty |
-| | — **DEBUG**: prompts to set `False` if still `True` |
-| | — **POSTGRES_PASSWORD**: auto-generates 48-char hex if default (`ondes_password`, `postgres`, etc.) and rebuilds `DATABASE_URL` |
-| | — **CERTBOT_EMAIL**: prompts for a real address if placeholder `admin@example.com` detected |
-| | — **ALLOWED_HOSTS**: prompts for your domain/IP when `*` is set in production mode |
-| | — **CORS_ALLOWED_ORIGINS**: prompts to replace `localhost` with your domain |
-| | — prints a sanitised summary (secrets truncated) before proceeding |
-| 11 | **Docker socket** — sets `chmod 660 /var/run/docker.sock` so the API container can manage user stacks |
-| 12 | **Pull base images** — `postgres`, `redis`, `nginx`, `certbot` pre-pulled for faster builds |
-| 13 | **Build images** — `docker compose build --parallel` for `api` (Django/Daphne) and `app` (Flutter web) |
+| 5 | **Conflicting servers removed** — stops & purges system NGINX, Apache, Lighttpd, Caddy |
+| 6 | **System deps** — installs `curl`, `git`, `openssl`, `ca-certificates`, `gnupg` |
+| 7 | **Docker Engine** — skips if already installed; uses official `get.docker.com` bootstrap |
+| 8 | **Docker Compose v2** — plugin via distro package manager or standalone binary |
+| 9 | **Project directory** — uses current folder or clones to `/opt/ondes-host` |
+| 10 | **`.env` security validation** — auto-generates `SECRET_KEY` & `POSTGRES_PASSWORD`, warns on weak/placeholder values, prompts for your domain and Certbot email |
+| 11 | **Docker socket** — `chmod 660 /var/run/docker.sock` |
+| 12 | **Pull base images** — `postgres`, `redis`, `nginx`, `certbot` pre-pulled |
+| 13 | **Build** — `docker compose build --parallel` |
 | 14 | **Launch** — `docker compose up -d --remove-orphans` |
-| 15 | **Health polling** — waits up to 180 s for the API to respond; reports per-service status |
-| 16 | **Migrations** — `python manage.py migrate --noinput` (idempotent) |
+| 15 | **Health polling** — waits up to 180 s for API readiness |
+| 16 | **Migrations** — `python manage.py migrate --noinput` |
 | 17 | **Superuser** — interactive prompt to create a Django admin account |
-| 18 | **UFW firewall** (optional) — allows 22/80/443, explicitly denies 5432/6379/8000/3000 from outside |
-| 19 | **Summary** — detects public IP via `icanhazip.com`, prints service URLs and handy commands |
-
-### Environment variables (override before running)
+| 18 | **UFW firewall** — opens 22/80/443, blocks 5432/6379/8000/3000 from outside |
+| 19 | **Summary** — prints your public IP, service URLs and handy management commands |
 
 ```bash
-export ONDES_REPO_URL="https://github.com/MartinBellot/ONDES_HOST.git"  # default clone target
-export ONDES_DIR="/opt/ondes-host"                                    # installation directory
+# Override defaults
+export ONDES_REPO_URL="https://github.com/YourFork/ONDES_HOST.git"
+export ONDES_DIR="/opt/ondes-host"
 sudo -E bash deploy.sh
+```
+
+</details>
+
+---
+
+## 🏗️ Project Structure
+
+```
+ondes-host/
+├── api/                  # Django 5 backend (REST + WebSockets via Channels/Daphne)
+│   ├── apps/
+│   │   ├── authentication/   # JWT login, register, logout
+│   │   ├── docker_manager/   # Container lifecycle + live metrics WebSocket
+│   │   ├── github_integration/ # OAuth App flow, repo/branch/compose browser
+│   │   ├── nginx_manager/    # Vhost CRUD, Certbot runner, DNS checker
+│   │   ├── ssh_manager/      # WebSocket SSH terminal (Paramiko)
+│   │   └── stacks/           # Full deploy pipeline, CI/CD webhooks, NGINX auto-detect
+│   └── config/               # Django settings, ASGI, URLs
+├── app/                  # Flutter frontend (macOS + web)
+│   └── lib/
+│       ├── screens/          # All UI screens (see below)
+│       ├── providers/        # State management (Provider)
+│       ├── services/         # API & WebSocket clients
+│       └── widgets/          # Reusable UI components
+├── nginx/                # Platform-level NGINX config
+├── docker-compose.yml    # Production service definitions
+└── deploy.sh             # One-command VPS installer
 ```
 
 ---
 
-## Quick Start
+## 🎯 Features At a Glance
+
+<table>
+<tr>
+<td width="50%">
+
+### 🐙 GitHub Integration
+- Connect via OAuth App (credentials stored in DB — no server restart needed)
+- Browse all your repos, filter by name
+- Select branch, pick a `docker-compose.yml`, set env vars
+- Auto-detects compose files across your repo tree
+
+</td>
+<td width="50%">
+
+### 📦 Stack Deployment
+- Full `git clone → docker compose up --build` pipeline
+- `nginx` & `certbot` services auto-stripped from repo compose (platform manages them)
+- Real-time streaming deploy logs via WebSocket
+- Start / Stop / Restart / Redeploy from the detail view
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 🌐 NGINX & SSL
+- Per-stack multi-domain vhost management
+- **Multi-service routing** via `route_overrides` — e.g. `/api/ → :8001`, `/ → :3001`
+- **`include_www`** flag generates `www.` redirect blocks automatically
+- One-click Certbot with DNS propagation check wizard
+- Certificate expiry tracking + auto-renewal every 12 h
+
+</td>
+<td>
+
+### 🗺️ Live Infrastructure Canvas
+- Zoomable (0.3×–2.5×) draggable canvas of all running containers
+- Grouped by Compose project
+- CPU and memory bars updated live every 3 s via WebSocket
+- Colour-coded thresholds: 🟢 < 40% · 🟡 < 80% · 🔴 ≥ 80%
+- Click any node → side-panel with full details
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 🔒 DNS Propagation Checker
+- Per-vhost **Vérifier DNS** button
+- Compares server public IP vs. resolved A record
+- Auto-polls every 15 s until propagated
+- Blocks Certbot from running until DNS is confirmed ✅
+
+</td>
+<td>
+
+### 🪝 CI/CD Webhooks
+- Each stack gets a unique secret token (UUID)
+- `POST /api/stacks/{id}/webhook/` with `Authorization: Bearer <token>`
+- Triggers a full redeploy + streams logs
+- Drop-in with GitHub Actions, GitLab CI, or any HTTP client
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 💻 SSH Terminal
+- Live WebSocket shell powered by Paramiko
+- Password or private key authentication
+- Interactive shell or one-shot command execution
+
+</td>
+<td>
+
+### 🐳 Docker Manager
+- List all containers with live status
+- Start, stop, remove
+- Create new containers from the UI
+- Docker daemon health check & version info
+
+</td>
+</tr>
+</table>
+
+---
+
+## ⚡ Quick Start (Local / Docker)
+
+### 1. Configure environment
+
 ```bash
 cp .env.example .env
 # Edit .env — change SECRET_KEY and POSTGRES_PASSWORD at minimum
 ```
 
 ### 2. Start with Docker Compose
+
 ```bash
 docker-compose up --build
 ```
 
 | Service | URL |
 |---|---|
-| Frontend | http://localhost:3000 |
-| API | http://localhost:8000/api/ |
-| Admin | http://localhost:8000/admin/ |
+| 🖥️ Frontend | http://localhost:3000 |
+| ⚙️ API | http://localhost:8000/api/ |
+| 🔧 Admin | http://localhost:8000/admin/ |
 
-### 3. Create a superuser (first run)
+### 3. Create a superuser
+
 ```bash
 docker-compose exec api python manage.py createsuperuser
 ```
 
 ---
 
-## Local Development (without Docker)
+## 🛠️ Local Development (without Docker)
 
 ### Backend
+
 ```bash
 cd api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
-# SQLite + InMemoryChannelLayer are used automatically (no Postgres/Redis needed)
+# SQLite + InMemoryChannelLayer used automatically — no Postgres/Redis needed
 python manage.py runserver
-# or with WebSocket support:
+# For full WebSocket support:
 daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
 
-### Flutter (macOS)
+### Flutter — macOS desktop
+
 ```bash
 cd app
 flutter pub get
 flutter run -d macos
 ```
 
-### Flutter (web)
+### Flutter — web
+
 ```bash
+cd app
 flutter run -d chrome \
   --dart-define=API_URL=http://localhost:8000/api \
   --dart-define=WS_URL=ws://localhost:8000
@@ -135,59 +275,119 @@ flutter run -d chrome \
 
 ---
 
-## GitHub Integration Setup
+## 🔌 GitHub OAuth Setup
 
-OAuth credentials are **not stored in `.env`** — they are configured directly from the app UI so you never need to restart the server.
+OAuth credentials live in the database — you never touch `.env` for this.
 
 1. Open the app → **GitHub** screen.
 2. The wizard shows your **Authorization callback URL** — copy it.
 3. Go to [github.com/settings/developers](https://github.com/settings/developers) → *New OAuth App*.
    - Homepage URL: `http://localhost:3000` (or your domain)
-   - Authorization callback URL: paste the URL from step 2
-4. Copy the **Client ID** and generate a **Client Secret**.
-5. Paste both into the wizard → **Enregistrer et continuer**.
-6. Click **Se connecter avec GitHub** — OAuth flow opens in the system browser.
+   - Callback URL: paste what you copied
+4. Copy **Client ID** + generate **Client Secret**.
+5. Paste both into the wizard → **Save & continue**.
+6. Click **Connect with GitHub** — OAuth opens in your system browser.
 
-Credentials are stored in the database via the `GitHubOAuthConfig` singleton model. To reconfigure, click *Reconfigurer OAuth App* on the GitHub screen.
-
----
-
-## Stacks (auto-deploy pipeline)
-
-1. **Connect GitHub** (see above).
-2. Browse your repos → tap a repo.
-3. Select a branch, pick a `docker-compose.yml`, fill in optional env vars, give the project a name.
-4. Click **Déployer** — the server clones the repo, automatically strips any `nginx` / `certbot` services from the compose file (using the platform's own managed instances instead), runs `docker compose up --build -d` and streams logs in real time.
-5. Manage the running stack from **Stack Detail**: start/stop/restart/redeploy, edit env vars, view logs.
-6. Open the **Domaine & SSL** tab → add a domain, follow the DNS guide, and activate Let's Encrypt SSL with one click.
+> Credentials are stored in the `GitHubOAuthConfig` singleton model. To reconfigure, click *Reconfigure OAuth App*.
 
 ---
 
-## API Reference
+## 🔄 CI/CD Webhook Example
 
-### Auth
+Add this step to your GitHub Actions workflow for zero-touch deploys:
+
+```yaml
+- name: Trigger Ondes HOST redeploy
+  run: |
+    curl -X POST https://your-server.com/api/stacks/1/webhook/ \
+      -H "Authorization: Bearer ${{ secrets.ONDES_WEBHOOK_TOKEN }}"
+```
+
+---
+
+## 🏠 Migrate an Existing Site to Ondes HOST
+
+Sites with their own nginx container should follow the **site-internal nginx pattern**:
+
+<details>
+<summary><strong>Step-by-step migration guide</strong></summary>
+
+### Adapting the site's repo
+
+| Change | Why |
+|---|---|
+| Map nginx from `80:80` → unique port (e.g. `8081:80`) | Ondes HOST owns ports 80 & 443 |
+| Remove `certbot` service | Ondes HOST manages all TLS |
+| Remove SSL `server` blocks — keep only `listen 80` | Platform handles HTTPS termination |
+| Replace `$scheme` with `$http_x_forwarded_proto` | Upstream apps see correct protocol |
+| Remove ACME challenge location block | Platform's nginx handles it |
+| Remove certbot volume mounts | No longer needed |
+
+### For Django services in the repo
+
+```python
+# settings.py
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # ← add here
+    ...
+]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = False
+DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3',
+                          'NAME': os.environ.get('DB_PATH', BASE_DIR / 'db.sqlite3')}}
+```
+
+### Deploying
+
+1. Push the adapted repo to GitHub.
+2. Deploy via Ondes HOST **Stacks** tab.
+3. In **Domaine & SSL**, create a vhost pointing to `8081` (your site's internal port). No `route_overrides` needed.
+4. Enable **include www** if needed.
+5. Verify DNS → **Activer SSL** — done. ✅
+
+> ⚠️ **Always back up your data before migrating!**
+
+</details>
+
+---
+
+## 🔗 API Reference
+
+<details>
+<summary><strong>Auth endpoints</strong></summary>
+
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/auth/register/` | Register user |
 | `POST` | `/api/auth/login/` | Obtain JWT tokens |
 | `POST` | `/api/auth/refresh/` | Refresh access token |
+| `POST` | `/api/auth/logout/` | Blacklist refresh token |
+| `GET`  | `/api/auth/me/` | Current user profile |
 
-### Docker
+</details>
+
+<details>
+<summary><strong>Docker endpoints</strong></summary>
+
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET`  | `/api/docker/status/` | Docker daemon availability |
-| `GET`  | `/api/docker/containers/` | List containers |
-| `POST` | `/api/docker/containers/create/` | Deploy container |
+| `GET`  | `/api/docker/status/` | Docker daemon health + version |
+| `GET`  | `/api/docker/containers/` | List all containers |
+| `POST` | `/api/docker/containers/create/` | Deploy a new container |
 | `POST` | `/api/docker/containers/{id}/start/` | Start |
 | `POST` | `/api/docker/containers/{id}/stop/` | Stop |
 | `POST` | `/api/docker/containers/{id}/remove/` | Remove |
 
-### GitHub
+</details>
+
+<details>
+<summary><strong>GitHub endpoints</strong></summary>
+
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET`  | `/api/github/config/` | Get OAuth App config |
-| `POST` | `/api/github/config/` | Save OAuth App credentials |
-| `DELETE` | `/api/github/config/` | Delete OAuth App config |
+| `GET/POST/DELETE` | `/api/github/config/` | Manage OAuth App credentials |
 | `GET`  | `/api/github/oauth/start/` | Get OAuth authorize URL |
 | `GET`  | `/api/github/oauth/callback/` | OAuth redirect handler |
 | `GET`  | `/api/github/profile/` | Connected GitHub profile |
@@ -196,97 +396,93 @@ Credentials are stored in the database via the `GitHubOAuthConfig` singleton mod
 | `GET`  | `/api/github/repos/{owner}/{repo}/branches/` | List branches |
 | `GET`  | `/api/github/repos/{owner}/{repo}/compose-files/` | Find compose files |
 
-### Stacks
+</details>
+
+<details>
+<summary><strong>Stacks endpoints</strong></summary>
+
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET`  | `/api/stacks/` | List stacks |
-| `POST` | `/api/stacks/` | Create stack |
-| `GET`  | `/api/stacks/{id}/` | Stack detail |
-| `PUT`  | `/api/stacks/{id}/` | Update stack |
-| `DELETE` | `/api/stacks/{id}/` | Delete stack |
+| `GET/POST` | `/api/stacks/` | List / create stacks |
+| `GET/PUT/DELETE` | `/api/stacks/{id}/` | Detail / update / delete |
 | `POST` | `/api/stacks/{id}/deploy/` | Trigger deploy |
-| `POST` | `/api/stacks/{id}/action/` | start / stop / restart |
-| `GET`  | `/api/stacks/{id}/logs/` | Static logs |
-| `GET`  | `/api/stacks/{id}/env/` | Get env vars |
-| `PUT`  | `/api/stacks/{id}/env/` | Update env vars |
-| `GET`  | `/api/stacks/{id}/vhosts/` | List NGINX vhosts for this stack |
-| `POST` | `/api/stacks/{id}/webhook/` | Trigger re-deploy via GitHub Actions — `Authorization: Bearer <webhook_token>` |
-| `GET`  | `/api/stacks/{id}/detect-nginx/` | Dry-run NGINX auto-detect — returns suggestions without writing to DB |
+| `POST` | `/api/stacks/{id}/action/` | `start` / `stop` / `restart` |
+| `GET`  | `/api/stacks/{id}/logs/` | Static logs (`?lines=N`) |
+| `GET/PATCH` | `/api/stacks/{id}/env/` | Read / update env vars |
+| `GET`  | `/api/stacks/{id}/vhosts/` | List NGINX vhosts |
+| `GET`  | `/api/stacks/{id}/containers/` | Running containers for this project |
+| `GET`  | `/api/stacks/{id}/check-update/` | Compare deployed SHA vs. latest on branch |
+| `POST` | `/api/stacks/{id}/webhook/` | CI/CD trigger (`Authorization: Bearer <token>`) |
+| `GET`  | `/api/stacks/{id}/detect-nginx/` | Dry-run NGINX auto-detect (no DB writes) |
 
-### NGINX
+</details>
+
+<details>
+<summary><strong>NGINX endpoints</strong></summary>
+
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET`    | `/api/nginx/vhosts/` | List all vhosts (filter: `?stack=<id>`) |
-| `POST`   | `/api/nginx/vhosts/` | Create vhost — writes NGINX config + reload |
-| `GET`    | `/api/nginx/vhosts/{id}/` | Vhost detail |
-| `PATCH`  | `/api/nginx/vhosts/{id}/` | Update vhost (rewrites config) |
-| `DELETE` | `/api/nginx/vhosts/{id}/` | Delete vhost + reload |
-| `POST`   | `/api/nginx/vhosts/{id}/certbot/` | Run Certbot for this domain; body: `{"email": "…"}` — adds `-d www.{domain}` automatically when `include_www=true` |
-| `GET`    | `/api/nginx/vhosts/{id}/cert-status/` | Refresh cert expiry from disk |
-| `GET`    | `/api/nginx/vhosts/{id}/check-dns/` | Check DNS propagation — returns `{domain, server_ip, resolved_ip, propagated}` |
-| `POST`   | `/api/nginx/preview/` | *(legacy)* Preview raw config |
-| `POST`   | `/api/nginx/configure/` | *(legacy)* Write raw config + reload |
-| `POST`   | `/api/nginx/certbot/` | *(legacy)* Run Certbot (generic) |
+| `GET/POST` | `/api/nginx/vhosts/` | List / create vhosts |
+| `GET/PATCH/DELETE` | `/api/nginx/vhosts/{id}/` | Detail / update / delete |
+| `POST` | `/api/nginx/vhosts/{id}/certbot/` | Run Certbot (`{"email": "…"}`) |
+| `GET`  | `/api/nginx/vhosts/{id}/cert-status/` | Refresh cert expiry from disk |
+| `GET`  | `/api/nginx/vhosts/{id}/check-dns/` | DNS propagation check |
 
-> **`route_overrides`** — When a vhost serves multiple upstream services (e.g. `/api/ → Django :8001`, `/ → Next.js :3001`), store them as a JSON array in the `route_overrides` field. The platform generates a single NGINX `server` block with one `location` entry per path, sorted most-specific-first. The main `upstream_port` is used as a fallback when `route_overrides` is empty.
+> **`route_overrides`** — JSON array for multi-service stacks. Example: `[{"path": "/api/", "upstream_port": 8001}, {"path": "/", "upstream_port": 3001}]`. Generates a single `server` block with sorted `location` entries.
 
-> **Site-internal nginx pattern** — For complex stacks (e.g. Flutter admin SPA, HLS video, fine-grained caching), the recommended pattern is to keep the **repo's own nginx** running on an internal port (e.g. `8081:80`) and create a **single vhost** pointing to that port — no `route_overrides` needed. Ondes HOST handles TLS, HSTS, ACME renewals and `www` redirects; all internal routing complexity stays in the repo's nginx config. The repo's nginx must: listen on port 80 only (no SSL blocks), use `X-Forwarded-Proto $http_x_forwarded_proto` instead of `$scheme`, and remove its own certbot service.
+</details>
 
-### WebSocket endpoints
+<details>
+<summary><strong>WebSocket endpoints</strong></summary>
+
 | URL | Purpose |
 |---|---|
-| `ws://…/ws/ssh/` | Live SSH terminal (send connect payload) |
+| `ws://…/ws/ssh/` | Live SSH terminal |
 | `ws://…/ws/stacks/{id}/logs/` | Real-time deploy logs |
-| `ws://…/ws/metrics/?token=<jwt>` | Live container metrics (CPU %, mem %, status) — pushed every 3 s |
+| `ws://…/ws/metrics/?token=<jwt>` | Live container CPU/MEM — pushed every 3 s |
+
+</details>
 
 ---
 
-## Tech Stack
+## 🧰 Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Backend | Django 5, DRF, Django Channels 4, Daphne |
-| Auth | JWT (djangorestframework-simplejwt) |
-| Docker control | `docker` SDK 7.1+ |
-| SSH | Paramiko |
-| GitHub | OAuth 2.0 (credentials in DB, no env vars) |
-| NGINX management | `pyyaml` (compose bypass), `cryptography` (cert expiry parsing) |
-| SSL | Let's Encrypt via `certbot/certbot:latest` — on-demand + 12 h auto-renewal |
-| Database | SQLite (local dev) / PostgreSQL 15 (production) |
-| Cache / WS layer | InMemoryChannelLayer (local dev) / Redis 7 (production) |
-| Frontend | Flutter 3.43 (macOS + web) |
-| State management | Provider |
-| HTTP client | Dio |
-| Fonts | Google Fonts — Inter + JetBrains Mono |
+| **Backend** | Django 5, Django REST Framework, Django Channels 4, Daphne (ASGI) |
+| **Auth** | JWT — `djangorestframework-simplejwt` with token blacklisting |
+| **Docker control** | `docker` SDK 7.1+ — mounted socket |
+| **SSH** | Paramiko 3.4 |
+| **GitHub OAuth** | OAuth 2.0 — credentials in DB, zero env-var config |
+| **NGINX management** | `pyyaml` (compose parsing), `cryptography` (cert expiry) |
+| **SSL** | Let's Encrypt via `certbot/certbot:latest` — on-demand + 12 h auto-renewal |
+| **Database** | SQLite (local dev) / PostgreSQL 15 (production) |
+| **Cache / WS layer** | InMemoryChannelLayer (local) / Redis 7 (production) |
+| **Frontend** | Flutter 3.43 — macOS desktop + web |
+| **State management** | Provider |
+| **HTTP client** | Dio 5.4 |
+| **Fonts** | Google Fonts — Inter + JetBrains Mono |
 
 ---
 
-## Migrating an existing site to Ondes HOST
+## 🤝 Contributing
 
-### Preparing the site's repo
+We'd love your help! Whether it's a bug fix, a new feature, a translation, or a screenshot — every contribution counts.
 
-Sites that have their own nginx container (e.g. a complex Next.js + Django + Flutter admin stack) should use the **site-internal nginx pattern**:
+👉 Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
-1. **Change the nginx port mapping** from `80:80 / 443:443` to a unique host port (e.g. `8081:80`). Each site must use a different port.
-2. **Remove the certbot service** — Ondes HOST manages all TLS.
-3. **Remove SSL server blocks** from the site's nginx config — keep only `listen 80`.
-4. **Replace `$scheme`** with `$http_x_forwarded_proto` in all `proxy_set_header X-Forwarded-Proto` directives, so upstream Django/Node.js services see `https` correctly.
-5. **Remove the ACME challenge location block** — Ondes HOST's nginx handles it.
-6. **Remove certbot volume mounts** from the nginx service.
+---
 
-For Django services in the repo:
-- Add `whitenoise` to `requirements.txt` and insert `WhiteNoiseMiddleware` just after `SecurityMiddleware`.
-- Set `STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'`.
-- Serve media unconditionally: `urlpatterns += [re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT})]`.
-- Use `DB_PATH` env var for `DATABASES['default']['NAME']` and mount a named volume to persist the SQLite file.
-- Set `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')` and `SECURE_SSL_REDIRECT = False`.
+## 📄 License
 
-### Deploying via Ondes HOST (⚠️ KEEP YOUR DATA IN SAFETY, do backups )
+MIT © [Martin Bellot](https://github.com/MartinBellot)
 
-1. Upload the repo through the **Stacks** tab (GitHub import or direct deploy). 
-2. Ondes HOST automatically strips any service named/imaged as `nginx` or `certbot` from the compose file — the site's internal nginx is **not** stripped because it now uses a custom image build, not the `nginx:*` image name... unless you rename it to something other than `nginx` (e.g. `web`). Alternatively, just point Ondes HOST directly to the internal port with a manually created vhost.
-3. In the **Domaine & SSL** tab, create a vhost pointing to the site's internal nginx port (e.g. `8081`). No `route_overrides` needed — all routing is handled by the site's nginx.
-4. Enable **include www** if the domain should respond on `www.` too.
-5. Verify DNS propagation, then click **Activer SSL** — Certbot runs automatically.
+---
 
-> 🌐 **Site officiel :** [**https://ondes.pro**](https://ondes.pro)
+<div align="center">
+
+Made with ❤️ and way too much ☕
+
+**[ondes.pro](https://ondes.pro)** · [Report a bug](https://github.com/MartinBellot/ONDES_HOST/issues) · [Request a feature](https://github.com/MartinBellot/ONDES_HOST/issues)
+
+</div>

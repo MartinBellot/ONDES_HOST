@@ -34,13 +34,60 @@ except ImportError:
 _BYPASS_SERVICE_NAMES = frozenset({'nginx', 'certbot', 'certbot-companion', 'letsencrypt'})
 _BYPASS_IMAGE_FRAGMENTS = ('nginx', 'certbot')
 
+# Host ports claimed by the Ondes HOST platform NGINX container.
+# A user nginx binding these ports conflicts → strip it.
+# A user nginx binding any OTHER port is an internal gateway router → keep it.
+_PLATFORM_PORTS = frozenset({80, 443})
+
+
+def _nginx_gateway_host_port(service_def: dict) -> int | None:
+    """
+    Return the non-platform host port bound by a nginx-like service, or None.
+
+    A nginx service publishing e.g. ``"8081:80"`` is acting as an internal
+    gateway router for its own compose project.  The platform must NOT strip
+    it — instead it wraps around it by proxying to host port 8081.
+    Returns None when the service has no host-port binding or only binds
+    platform ports (80/443).
+    """
+    ports = service_def.get('ports') or []
+    for spec in ports:
+        if isinstance(spec, str):
+            host_part = spec.split(':')[0] if ':' in spec else spec
+            try:
+                hp = int(host_part.strip())
+                if hp not in _PLATFORM_PORTS:
+                    return hp
+            except ValueError:
+                pass
+        elif isinstance(spec, dict):
+            published = spec.get('published') or spec.get('target')
+            try:
+                hp = int(published)
+                if hp not in _PLATFORM_PORTS:
+                    return hp
+            except (TypeError, ValueError):
+                pass
+    return None
+
 
 def _is_managed_by_platform(service_name: str, service_def: dict) -> bool:
-    """Return True if this service should be removed (nginx / certbot handled by core)."""
-    if service_name.lower() in _BYPASS_SERVICE_NAMES:
-        return True
-    image = (service_def.get('image') or '').lower()
-    return any(frag in image for frag in _BYPASS_IMAGE_FRAGMENTS)
+    """
+    Return True if this service should be removed (nginx / certbot handled by core).
+
+    A nginx-like service is stripped ONLY when it would conflict with the
+    platform NGINX (i.e. it binds host port 80 or 443, or has no host-port
+    binding at all).  A gateway nginx that exposes a custom port (e.g. 8081)
+    to allow the platform to proxy into the compose project is preserved.
+    """
+    is_nginx_like = (
+        service_name.lower() in _BYPASS_SERVICE_NAMES
+        or any(frag in (service_def.get('image') or '').lower() for frag in _BYPASS_IMAGE_FRAGMENTS)
+    )
+    if not is_nginx_like:
+        return False
+    # Keep gateway nginx (custom host port) — only strip if it claims 80/443 or has no port.
+    return _nginx_gateway_host_port(service_def) is None
 
 
 def _strip_platform_services(compose_path: str, app_id: int) -> tuple[str, list[str]]:

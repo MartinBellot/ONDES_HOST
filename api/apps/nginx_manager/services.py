@@ -705,6 +705,7 @@ def build_vhost_suggestions(
     parsed_files: list[dict],
     running_containers: list[dict],
     existing_domains: set[str],
+    gateway_port: int | None = None,
 ) -> list[dict]:
     """
     Match parsed nginx specs with running containers by Docker service name.
@@ -722,6 +723,12 @@ def build_vhost_suggestions(
           'already_exists':  bool,
           'auto_create':     bool,
         }
+
+    *gateway_port* — when provided, is used as a fallback upstream for domains
+    whose primary service has no host-port binding.  This covers the pattern
+    where the repo includes a gateway nginx on a custom port (e.g. 8081) and
+    the platform should proxy to that port instead of directly to the app:
+    the gateway nginx handles all internal routing (static/media/sub-services).
     """
     # Build service → {host_port, container_name} lookup
     service_map: dict[str, dict] = {}
@@ -798,8 +805,27 @@ def build_vhost_suggestions(
 
             effective_routes = route_overrides if len(unique_ports) > 1 else []
 
-            # Detect www redirect: repo nginx had a www.domain redirect-only server block
-            include_www = f'www.{domain}' in all_www_redirects
+            # Detect www: either a separate redirect-only block OR both canonical and
+            # www.domain appear in the same server_name directive.
+            include_www = (
+                f'www.{domain}' in all_www_redirects
+                or f'www.{domain}' in spec.get('all_names', [])
+            )
+
+            # Gateway nginx fallback: when the primary service has no host-port binding
+            # (internal-only) but the project exposes a gateway nginx on a custom port,
+            # proxy to that gateway — it handles all internal routing itself.
+            if host_port is None and gateway_port is not None:
+                host_port = gateway_port
+                svc_name = 'nginx'
+                container_name = next(
+                    (c.get('name', '') for c in running_containers
+                     if 'nginx' in (c.get('service') or '').lower()),
+                    container_name,
+                )
+                # The gateway nginx handles all routes internally — no platform-level
+                # route_overrides needed (they would conflict with the internal routing).
+                effective_routes = []
 
             seen_domains.add(domain)
             suggestions.append({
@@ -842,7 +868,27 @@ def auto_detect_and_create_vhosts(app, project_dir: str, project_name: str) -> d
     existing_by_domain: dict[str, object] = {v.domain: v for v in existing_qs}
     existing_domains = set(existing_by_domain.keys())
 
-    suggestions = build_vhost_suggestions(parsed_files, containers, existing_domains)
+    # Detect a gateway nginx: a running nginx container with a non-platform host port
+    # (i.e. not 80/443).  Such containers act as internal routers for their compose
+    # project.  When found, build_vhost_suggestions uses this port as a fallback upstream
+    # for domains whose app service has no direct host-port binding.
+    _PLATFORM_PORTS = frozenset({80, 443})
+    gateway_port: int | None = None
+    for _c in containers:
+        if 'nginx' not in (_c.get('service') or '').lower():
+            continue
+        for _p in (_c.get('ports') or []):
+            try:
+                _hp = int(_p.get('host_port', 0))
+                if _hp and _hp not in _PLATFORM_PORTS:
+                    gateway_port = _hp
+                    break
+            except (TypeError, ValueError):
+                pass
+        if gateway_port:
+            break
+
+    suggestions = build_vhost_suggestions(parsed_files, containers, existing_domains, gateway_port=gateway_port)
 
     created: list[dict] = []
     updated: list[dict] = []
