@@ -671,7 +671,7 @@ step "Deployment complete"
 
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${GREEN}║        Ondes HOST deployed successfully!                   ║${NC}"
+echo -e "${BOLD}${GREEN}║            Ondes HOST deployed successfully!             ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${BOLD}Access URLs${NC} (replace IP with your domain once DNS is configured):"

@@ -4,8 +4,9 @@
 
 ### Your Self-Hosted Infrastructure — Deployed in One Command.
 
-**A modern, open-source alternative to cPanel/Coolify.**  
-Deploy GitHub projects as Docker Stacks, manage NGINX vhosts, issue SSL certs, run SSH sessions, and monitor your infrastructure — all from a beautiful Flutter interface.
+**A modern, open-source WEB Infrastructure, for everyone**
+
+Deploy GitHub/(Gitlab 🏗️) projects as Docker Stacks, manage NGINX vhosts, issue SSL certs, run SSH sessions, and monitor your infrastructure — all from a powerful and easy interface.
 
 [![Django](https://img.shields.io/badge/Django-5.0-092E20?style=flat-square&logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![Flutter](https://img.shields.io/badge/Flutter-3.43-02569B?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev/)
@@ -19,8 +20,7 @@ Deploy GitHub projects as Docker Stacks, manage NGINX vhosts, issue SSL certs, r
 
 ---
 
-<!-- SCREENSHOT: Hero shot of the Infrastructure Canvas with live container metrics -->
-> 📸 *Screenshot placeholder — Infrastructure Canvas with live CPU/MEM metrics*
+![Ondes HOST — Infrastructure Canvas](.github/screenshots/base.png)
 
 ---
 
