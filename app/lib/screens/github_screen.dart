@@ -8,6 +8,8 @@ import '../providers/github_provider.dart';
 import '../utils/oauth_launcher.dart';
 import '../providers/stacks_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
+import '../widgets/main_shell.dart';
 import 'stack_detail_screen.dart';
 
 class GitHubScreen extends StatefulWidget {
@@ -171,8 +173,7 @@ class _GitHubScreenState extends State<GitHubScreen>
     // Close the sheet first, then navigate.
     Navigator.pop(context);
     _tabController.animateTo(1);
-    Navigator.push(
-      context,
+    MainShell.contentNavKey.currentState!.push(
       MaterialPageRoute(
         builder: (_) => StackDetailScreen(stackId: stackId),
       ),
@@ -188,42 +189,48 @@ class _GitHubScreenState extends State<GitHubScreen>
     final gh = context.watch<GitHubProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        title: const Text('GitHub',
-            style: TextStyle(color: AppColors.textPrimary)),
-        bottom: gh.connected
-            ? TabBar(
-                controller: _tabController,
-                labelColor: AppColors.accent,
-                unselectedLabelColor: AppColors.textSecondary,
-                indicatorColor: AppColors.accent,
-                tabs: const [
-                  Tab(text: 'Dépôts'),
-                  Tab(text: 'Mes Stacks'),
-                ],
-              )
-            : null,
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          ContentHeader(
+            title: 'GitHub',
+            bottom: gh.connected
+                ? TabBar(
+                    controller: _tabController,
+                    labelColor: AppColors.accent,
+                    unselectedLabelColor: AppColors.textMuted,
+                    indicatorColor: AppColors.accent,
+                    indicatorWeight: 2,
+                    dividerColor: GlassTokens.cardBorder,
+                    tabs: const [
+                      Tab(text: 'Dépôts'),
+                      Tab(text: 'Mes Stacks'),
+                    ],
+                  )
+                : null,
+          ),
+          Expanded(
+            child: gh.isProfileLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.accent))
+                : gh.connected
+                    ? TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _RepoListTab(
+                            searchCtrl: _repoSearchCtrl,
+                            filter: _repoFilter,
+                            onFilterChanged: (v) =>
+                                setState(() => _repoFilter = v.toLowerCase()),
+                            onRepoTap: _selectRepo,
+                          ),
+                          const _StacksTab(),
+                        ],
+                      )
+                    : _NotConnectedView(onConnect: _connectGitHub),
+          ),
+        ],
       ),
-      body: gh.isProfileLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-          : gh.connected
-              ? TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _RepoListTab(
-                      searchCtrl: _repoSearchCtrl,
-                      filter: _repoFilter,
-                      onFilterChanged: (v) =>
-                          setState(() => _repoFilter = v.toLowerCase()),
-                      onRepoTap: _selectRepo,
-                    ),
-                    const _StacksTab(),
-                  ],
-                )
-              : _NotConnectedView(onConnect: _connectGitHub),
     );
   }
 }
@@ -845,9 +852,9 @@ class _RepoCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: GlassTokens.cardBg,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: GlassTokens.cardBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -973,8 +980,7 @@ class _StacksTab extends StatelessWidget {
           final s = stacks.stacks[i];
           return _StackCard(
             stack: s,
-            onTap: () => Navigator.push(
-              context,
+            onTap: () => MainShell.contentNavKey.currentState!.push(
               MaterialPageRoute(
                 builder: (_) =>
                     StackDetailScreen(stackId: s['id'] as int),

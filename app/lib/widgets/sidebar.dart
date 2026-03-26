@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -8,91 +10,96 @@ class Sidebar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavigate;
 
-  const Sidebar(
-      {super.key, required this.selectedIndex, required this.onNavigate});
+  const Sidebar({
+    super.key,
+    required this.selectedIndex,
+    required this.onNavigate,
+  });
 
   static const _items = [
-    _NavItem(icon: Icons.hub_outlined, label: 'GitHub'),
-    _NavItem(icon: Icons.dashboard_outlined, label: 'Dashboard'),
-    _NavItem(icon: Icons.inventory_2_outlined, label: 'Containers'),
-    _NavItem(icon: Icons.account_tree_outlined, label: 'Canvas'),
-    _NavItem(icon: Icons.terminal_outlined, label: 'Terminal'),
+    _NavItem(icon: Icons.hub_outlined,          selectedIcon: Icons.hub,           label: 'GitHub'),
+    _NavItem(icon: Icons.dashboard_outlined,    selectedIcon: Icons.dashboard,     label: 'Dashboard'),
+    _NavItem(icon: Icons.inventory_2_outlined,  selectedIcon: Icons.inventory_2,   label: 'Containers'),
+    _NavItem(icon: Icons.account_tree_outlined, selectedIcon: Icons.account_tree,  label: 'Canvas'),
+    _NavItem(icon: Icons.terminal_outlined,     selectedIcon: Icons.terminal,      label: 'Terminal'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 220,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(right: BorderSide(color: AppColors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Space for macOS traffic-light buttons (28 px title bar) ─────
-          if (Platform.isMacOS) const SizedBox(height: 28),
-          // ── Logo ─────────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(40),
-                    child: Image.asset(
-                      'assets/images/icon.png',
-                      fit: BoxFit.contain,
-                    )
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'HOST',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          width: 220,
+          decoration: const BoxDecoration(
+            color: GlassTokens.sidebarBg,
+            border: Border(right: BorderSide(color: GlassTokens.cardBorder, width: 1)),
           ),
-          const Divider(height: 1),
-          const SizedBox(height: 8),
-          // ── Nav items ─────────────────────────────────────────────────────
-          for (int i = 0; i < _items.length; i++)
-            _SidebarTile(
-              item: _items[i],
-              isSelected: selectedIndex == i,
-              onTap: () => onNavigate(i),
-            ),
-          const Spacer(),
-          const Divider(height: 1),
-          // ── Logout ────────────────────────────────────────────────────────
-          _SidebarTile(
-            item: const _NavItem(icon: Icons.logout_outlined, label: 'Logout'),
-            isSelected: false,
-            isDestructive: true,
-            onTap: () => context.read<AuthProvider>().logout(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (Platform.isMacOS) const SizedBox(height: 28),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset('assets/images/icon.png', fit: BoxFit.contain),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'HOST',
+                      style: GoogleFonts.poppins(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              for (int idx = 0; idx < _items.length; idx++)
+                _SidebarTile(
+                  item: _items[idx],
+                  isSelected: selectedIndex == idx,
+                  onTap: () => onNavigate(idx),
+                ),
+              const Spacer(),
+              const Divider(height: 1),
+              _SidebarTile(
+                item: const _NavItem(
+                  icon: Icons.logout_outlined,
+                  selectedIcon: Icons.logout,
+                  label: 'Logout',
+                ),
+                isSelected: false,
+                isDestructive: true,
+                onTap: () => context.read<AuthProvider>().logout(),
+              ),
+              const SizedBox(height: 12),
+            ],
           ),
-          const SizedBox(height: 8),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
 class _NavItem {
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
-  const _NavItem({required this.icon, required this.label});
+  const _NavItem({required this.icon, required this.selectedIcon, required this.label});
 }
 
-// ─── Tile with hover ──────────────────────────────────────────────────────────
 class _SidebarTile extends StatefulWidget {
   final _NavItem item;
   final bool isSelected;
@@ -115,43 +122,49 @@ class _SidebarTileState extends State<_SidebarTile> {
 
   @override
   Widget build(BuildContext context) {
-    final Color color;
+    final Color foreground;
     if (widget.isDestructive) {
-      color = _hovering ? AppColors.accentRed : AppColors.textMuted;
+      foreground = _hovering ? AppColors.accentRed : AppColors.textMuted;
     } else if (widget.isSelected) {
-      color = AppColors.accent;
+      foreground = AppColors.accent;
     } else {
-      color = _hovering ? AppColors.textSecondary : AppColors.textMuted;
+      foreground = _hovering ? AppColors.textSecondary : AppColors.textMuted;
     }
+
+    final icon = widget.isSelected ? widget.item.selectedIcon : widget.item.icon;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
+      onExit:  (_) => setState(() => _hovering = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: widget.isSelected
-                ? AppColors.accent.withValues(alpha: 0.1)
+                ? AppColors.accent.withValues(alpha: 0.12)
                 : _hovering
-                    ? AppColors.surfaceVariant
+                    ? const Color(0x0FFFFFFF)
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
+            border: widget.isSelected
+                ? Border.all(color: AppColors.accent.withValues(alpha: 0.2), width: 1)
+                : null,
           ),
           child: Row(
             children: [
-              Icon(widget.item.icon, size: 16, color: color),
+              Icon(icon, size: 16, color: foreground),
               const SizedBox(width: 10),
               Text(
                 widget.item.label,
                 style: TextStyle(
-                  color: color,
-                  fontSize: 14,
-                  fontWeight:
-                      widget.isSelected ? FontWeight.w500 : FontWeight.w400,
+                  color: foreground,
+                  fontSize: 13,
+                  fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.w400,
+                  fontFamily: GoogleFonts.inter().fontFamily,
                 ),
               ),
             ],

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
@@ -9,6 +10,7 @@ import 'screens/login_screen.dart';
 import 'widgets/main_shell.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(
     MultiProvider(
       providers: [
@@ -27,10 +29,19 @@ class OndesApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // On macOS the NSVisualEffectView (MainFlutterWindow.swift) provides the
+    // frosted-glass window background; Flutter's scaffold must be transparent
+    // so the native vibrancy shows through.
+    final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
+    final theme = AppTheme().ultraDarkTheme.copyWith(
+      scaffoldBackgroundColor:
+          isMacOS ? Colors.transparent : AppColors.background,
+    );
+
     return MaterialApp(
       title: 'Ondes',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme().ultraDarkTheme,
+      theme: theme,
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
           if (auth.isLoading) {

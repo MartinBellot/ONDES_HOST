@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
 
 // ─── Data models ─────────────────────────────────────────────────────────────
 
@@ -191,7 +192,7 @@ class _InfrastructureCanvasScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           _CanvasHeader(
@@ -590,70 +591,50 @@ class _CanvasHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.account_tree_outlined,
-              size: 18, color: AppColors.accent),
-          const SizedBox(width: 10),
-          const Text('Infrastructure Canvas',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              )),
-          const SizedBox(width: 20),
-          // Live indicator
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: wsConnected ? AppColors.accentGreen : AppColors.textMuted,
-            ),
+    return ContentHeader(
+      title: 'Infrastructure Canvas',
+      actions: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: wsConnected ? AppColors.accentGreen : AppColors.textMuted,
           ),
-          const SizedBox(width: 6),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          wsConnected ? 'Live' : 'Connexion…',
+          style: TextStyle(
+            color: wsConnected ? AppColors.accentGreen : AppColors.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (wsConnected) ...[
+          const SizedBox(width: 16),
           Text(
-            wsConnected ? 'Live' : 'Connexion…',
-            style: TextStyle(
-              color: wsConnected ? AppColors.accentGreen : AppColors.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+            '$runningCount / $containerCount containers actifs',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
             ),
-          ),
-          if (wsConnected) ...[
-            const SizedBox(width: 16),
-            Text(
-              '$runningCount / $containerCount containers actifs',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-          const Spacer(),
-          Tooltip(
-            message: 'Rafraîchir les stacks',
-            child: IconButton(
-              icon: const Icon(Icons.refresh,
-                  size: 18, color: AppColors.textSecondary),
-              onPressed: onRefresh,
-            ),
-          ),
-          const SizedBox(width: 4),
-          // Zoom indicator hint
-          const Tooltip(
-            message: 'Scroll pour zoomer · Drag pour déplacer',
-            child: Icon(Icons.zoom_in, size: 18, color: AppColors.textMuted),
           ),
         ],
-      ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Rafraîchir les stacks',
+          child: IconButton(
+            icon: const Icon(Icons.refresh,
+                size: 18, color: AppColors.textSecondary),
+            onPressed: onRefresh,
+          ),
+        ),
+        const Tooltip(
+          message: 'Scroll pour zoomer · Drag pour déplacer',
+          child: Icon(Icons.zoom_in, size: 18, color: AppColors.textMuted),
+        ),
+      ],
     );
   }
 }

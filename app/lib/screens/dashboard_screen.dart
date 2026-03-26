@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../providers/docker_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/glass_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -64,13 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Overview',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 20),
                       Wrap(
@@ -99,13 +96,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
                       const SizedBox(height: 36),
-                      const Text(
+                      Text(
                         'Containers',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 12),
                       _ContainerTable(docker: docker),
@@ -140,12 +133,8 @@ class _ContainerTable extends StatelessWidget {
       return const _EmptyState(
           'No containers found.\nDeploy one from the Containers tab.');
     }
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
+    return GlassCard(
+      padding: EdgeInsets.zero,
       child: Column(
         children: docker.containers
             .map((c) => _ContainerRow(container: c, docker: docker))
@@ -166,7 +155,7 @@ class _ContainerRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.borderLight)),
+        border: Border(bottom: BorderSide(color: GlassTokens.cardBorder)),
       ),
       child: Row(
         children: [
@@ -220,8 +209,8 @@ class _PageHeader extends StatelessWidget {
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 28),
         decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(bottom: BorderSide(color: AppColors.border)),
+          color: GlassTokens.sidebarBg,
+          border: Border(bottom: BorderSide(color: GlassTokens.cardBorder)),
         ),
         child: Row(
           children: [

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
+import '../widgets/main_shell.dart';
 import '../providers/sites_provider.dart';
 import 'site_detail_screen.dart';
 
@@ -29,7 +31,7 @@ class _SitesScreenState extends State<SitesScreen> {
           final site = await context.read<SitesProvider>().createSite(data);
           if (site != null && mounted) {
             Navigator.of(context).pop();
-            Navigator.of(context).push(MaterialPageRoute(
+            MainShell.contentNavKey.currentState!.push(MaterialPageRoute(
               builder: (_) => SiteDetailScreen(site: site),
             ));
           }
@@ -41,68 +43,50 @@ class _SitesScreenState extends State<SitesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // Header
-          Builder(builder: (context) {
-            final isMobile = MediaQuery.sizeOf(context).width < 700;
-            return Container(
-              height: 56,
-              padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 28),
-              decoration: const BoxDecoration(
-                color: AppColors.surface,
-                border: Border(bottom: BorderSide(color: AppColors.border)),
+          ContentHeader(
+            title: 'Mes Sites',
+            actions: [
+              Consumer<SitesProvider>(
+                builder: (ctx, sites, __) {
+                  final isMobile = MediaQuery.sizeOf(ctx).width < 700;
+                  return isMobile
+                      ? IconButton(
+                          onPressed: sites.isLoading
+                              ? null
+                              : () => context.read<SitesProvider>().fetchSites(),
+                          icon: const Icon(Icons.refresh,
+                              size: 18, color: AppColors.textSecondary),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        )
+                      : TextButton.icon(
+                          onPressed: sites.isLoading
+                              ? null
+                              : () => context.read<SitesProvider>().fetchSites(),
+                          icon: const Icon(Icons.refresh,
+                              size: 14, color: AppColors.textSecondary),
+                          label: const Text('Refresh',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 13)),
+                        );
+                },
               ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Mes Sites',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Consumer<SitesProvider>(
-                    builder: (_, sites, __) => isMobile
-                        ? IconButton(
-                            onPressed: sites.isLoading
-                                ? null
-                                : () => context.read<SitesProvider>().fetchSites(),
-                            icon: const Icon(Icons.refresh,
-                                size: 18, color: AppColors.textSecondary),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          )
-                        : TextButton.icon(
-                            onPressed: sites.isLoading
-                                ? null
-                                : () => context.read<SitesProvider>().fetchSites(),
-                            icon: const Icon(Icons.refresh,
-                                size: 14, color: AppColors.textSecondary),
-                            label: const Text('Refresh',
-                                style: TextStyle(
-                                    color: AppColors.textSecondary, fontSize: 13)),
-                          ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: _createSite,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: isMobile
-                        ? const Text('Créer')
-                        : const Text('Nouveau site'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _createSite,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Nouveau site'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                ),
               ),
-            );
-          }),
+            ],
+          ),
           // Body
           Expanded(
             child: Consumer<SitesProvider>(
@@ -136,12 +120,13 @@ class _SitesScreenState extends State<SitesScreen> {
                                     child: SiteCard(
                                       site: s,
                                       isMobile: true,
-                                      onTap: () => Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              SiteDetailScreen(site: s),
-                                        ),
-                                      ),
+                                      onTap: () =>
+                                          MainShell.contentNavKey
+                                              .currentState!
+                                              .push(MaterialPageRoute(
+                                            builder: (_) =>
+                                                SiteDetailScreen(site: s),
+                                          )),
                                       onDelete: () async {
                                         final confirmed = await _confirmDelete(
                                             context, s['name']);
@@ -162,12 +147,13 @@ class _SitesScreenState extends State<SitesScreen> {
                           children: sites.sites
                               .map<Widget>((s) => SiteCard(
                                     site: s,
-                                    onTap: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            SiteDetailScreen(site: s),
-                                      ),
-                                    ),
+                                    onTap: () =>
+                                        MainShell.contentNavKey
+                                            .currentState!
+                                            .push(MaterialPageRoute(
+                                          builder: (_) =>
+                                              SiteDetailScreen(site: s),
+                                        )),
                                     onDelete: () async {
                                       final confirmed = await _confirmDelete(
                                           context, s['name']);

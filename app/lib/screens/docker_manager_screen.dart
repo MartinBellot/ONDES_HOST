@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
+import '../widgets/glass_card.dart';
 import '../providers/docker_provider.dart';
 
 class DockerManagerScreen extends StatefulWidget {
@@ -77,6 +79,7 @@ class _DockerManagerScreenState extends State<DockerManagerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           const _Header('Deploy Container'),
@@ -166,13 +169,7 @@ class _DeployForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
+    return GlassCard(
       child: Form(
         key: formKey,
         child: Column(
@@ -240,12 +237,8 @@ class _ContainerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
+    return GlassCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -412,22 +405,7 @@ class _Header extends StatelessWidget {
   const _Header(this.title);
 
   @override
-  Widget build(BuildContext context) => Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          border: Border(bottom: BorderSide(color: AppColors.border)),
-        ),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(title,
-              style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600)),
-        ),
-      );
+  Widget build(BuildContext context) => ContentHeader(title: title);
 }
 
 class _MiniBtn extends StatefulWidget {

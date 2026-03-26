@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
 import '../providers/sites_provider.dart';
 import '../providers/github_provider.dart';
 
@@ -46,71 +47,41 @@ class _SiteDetailScreenState extends State<SiteDetailScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // ── Header ─────────────────────────────────────────────────
-          Container(
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          // ── Glass header ──────────────────────────────────────────────
+          ContentHeader(
+            title: _site['name'] ?? '—',
+            backLabel: 'Sites',
+            actions: [
+              if (_site['domain']?.isNotEmpty == true)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.arrow_back_ios_new,
-                            size: 16, color: AppColors.textSecondary),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _site['name'] ?? '—',
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (_site['domain']?.isNotEmpty == true)
-                              Text(
-                                _site['domain'],
-                                style: const TextStyle(
-                                    color: AppColors.accent, fontSize: 13),
-                              ),
-                          ],
-                        ),
-                      ),
-                      _StatusPill(_site['status'] ?? 'idle'),
-                    ],
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    _site['domain'],
+                    style: const TextStyle(
+                        color: AppColors.accent, fontSize: 13),
                   ),
                 ),
-                TabBar(
-                  controller: _tabCtrl,
-                  isScrollable: true,
-                  labelColor: AppColors.accent,
-                  unselectedLabelColor: AppColors.textMuted,
-                  indicatorColor: AppColors.accent,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  labelStyle: GoogleFonts.inter(
-                      fontSize: 13, fontWeight: FontWeight.w500),
-                  tabs: const [
-                    Tab(text: 'Général'),
-                    Tab(text: 'GitHub'),
-                    Tab(text: 'Hébergement'),
-                    Tab(text: 'Domaine & SSL'),
-                    Tab(text: 'NGINX'),
-                  ],
-                ),
+              _StatusPill(_site['status'] ?? 'idle'),
+              const SizedBox(width: 8),
+            ],
+            bottom: TabBar(
+              controller: _tabCtrl,
+              isScrollable: true,
+              labelColor: AppColors.accent,
+              unselectedLabelColor: AppColors.textMuted,
+              indicatorColor: AppColors.accent,
+              indicatorWeight: 2,
+              labelStyle: GoogleFonts.inter(
+                  fontSize: 13, fontWeight: FontWeight.w500),
+              tabs: const [
+                Tab(text: 'Général'),
+                Tab(text: 'GitHub'),
+                Tab(text: 'Hébergement'),
+                Tab(text: 'Domaine & SSL'),
+                Tab(text: 'NGINX'),
               ],
             ),
           ),

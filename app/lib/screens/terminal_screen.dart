@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
+import '../widgets/glass_card.dart';
 import '../services/websocket_service.dart';
 
 class TerminalScreen extends StatefulWidget {
@@ -122,42 +124,26 @@ class _TerminalScreenState extends State<TerminalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           // ── Header ─────────────────────────────────────────────────
-          Container(
-            height: 56,
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'SSH Terminal',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+          ContentHeader(
+            title: 'SSH Terminal',
+            actions: [
+              if (_connected)
+                OutlinedButton.icon(
+                  onPressed: _disconnect,
+                  icon: const Icon(Icons.link_off, size: 14),
+                  label: const Text('Disconnect'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accentRed,
+                    side: const BorderSide(color: AppColors.accentRed),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
                   ),
                 ),
-                if (_connected)
-                  OutlinedButton.icon(
-                    onPressed: _disconnect,
-                    icon: const Icon(Icons.link_off, size: 14),
-                    label: const Text('Disconnect'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.accentRed,
-                      side: const BorderSide(color: AppColors.accentRed),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
           // ── Body ───────────────────────────────────────────────────
           Expanded(
@@ -262,13 +248,8 @@ class _ConnectionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.sizeOf(context).width < 700;
-    return Container(
+    return GlassCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

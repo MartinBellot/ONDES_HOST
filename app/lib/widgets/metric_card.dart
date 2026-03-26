@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import 'glass_card.dart';
 
 class MetricCard extends StatelessWidget {
   final String title;
@@ -19,13 +21,8 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
+    return GlassCard(
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -34,29 +31,34 @@ class MetricCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
+                style: GoogleFonts.inter(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
+                  letterSpacing: 0.4,
                 ),
               ),
               Icon(icon, size: 16, color: iconColor ?? AppColors.textMuted),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             value,
-            style: const TextStyle(
+            style: GoogleFonts.poppins(
               color: AppColors.textPrimary,
-              fontSize: 28,
+              fontSize: 30,
               fontWeight: FontWeight.w600,
+              letterSpacing: -0.5,
             ),
           ),
           if (subtitle != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               subtitle!,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: GoogleFonts.inter(
+                color: AppColors.textMuted,
+                fontSize: 12,
+              ),
             ),
           ],
         ],

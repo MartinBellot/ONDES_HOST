@@ -8,6 +8,7 @@ import '../providers/stacks_provider.dart';
 import '../services/websocket_service.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/content_header.dart';
 
 class StackDetailScreen extends StatefulWidget {
   final int stackId;
@@ -168,7 +169,7 @@ class _StackDetailScreenState extends State<StackDetailScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.primarySurface,
         title: const Text('Supprimer ce stack ?',
             style: TextStyle(color: AppColors.textPrimary)),
         content: const Text(
@@ -234,15 +235,18 @@ class _StackDetailScreenState extends State<StackDetailScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-            backgroundColor: AppColors.surface,
-            title: const Text('Stack',
-                style: TextStyle(color: AppColors.textPrimary))),
-        body: const Center(
-            child:
-                CircularProgressIndicator(color: AppColors.accent)),
+      return const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Column(
+          children: [
+            ContentHeader(title: 'Stack'),
+            Expanded(
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -251,38 +255,39 @@ class _StackDetailScreenState extends State<StackDetailScreen>
     final statusMsg = _stack['status_message'] as String? ?? '';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        title: Text(name,
-            style: const TextStyle(color: AppColors.textPrimary)),
-        actions: [
-          IconButton(
-            icon:
-                const Icon(Icons.delete_outline, color: AppColors.accentRed),
-            tooltip: 'Supprimer',
-            onPressed: _confirmDelete,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.accent,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.accent,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Déploiement'),
-            Tab(text: 'Variables'),
-            Tab(text: 'Logs'),
-            Tab(text: 'Domaine & SSL'),
-            Tab(text: 'CI/CD'),
-          ],
-        ),
-      ),
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // ── Status banner ──────────────────────────────────────────────
+          // ── Glass header ─────────────────────────────────────────────
+          ContentHeader(
+            title: name,
+            backLabel: 'GitHub',
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    color: AppColors.accentRed, size: 20),
+                tooltip: 'Supprimer',
+                onPressed: _confirmDelete,
+              ),
+            ],
+            bottom: TabBar(
+              controller: _tabController,
+              labelColor: AppColors.accent,
+              unselectedLabelColor: AppColors.textMuted,
+              indicatorColor: AppColors.accent,
+              indicatorWeight: 2,
+              dividerColor: GlassTokens.cardBorder,
+              isScrollable: true,
+              tabs: const [
+                Tab(text: 'Déploiement'),
+                Tab(text: 'Variables'),
+                Tab(text: 'Logs'),
+                Tab(text: 'Domaine & SSL'),
+                Tab(text: 'CI/CD'),
+              ],
+            ),
+          ),
+          // ── Status banner ─────────────────────────────────────────────
           _StatusBanner(
               status: status, message: statusMsg),
           // ── Update banner (new commit available) ───────────────────────
