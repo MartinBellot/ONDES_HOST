@@ -375,6 +375,34 @@ def deploy_app(app_id: int):
         _broadcast(app_id, f'❌ {app.compose_file} introuvable.', 'error')
         return
 
+    # ── 3a-pre. Pre-create bind-mount host directories ────────────────────────
+    # Docker creates missing host paths as root-owned empty dirs, which causes
+    # containers running as non-root (or writing on startup) to fail with
+    # "unable to open database file" or permission errors (e.g. SQLite on ./data/).
+    # We scan the compose file and mkdir every relative bind-mount source before
+    # docker compose up so the directory is already owned by the deploying user.
+    if _YAML_AVAILABLE:
+        try:
+            _cpath = os.path.join(project_dir, app.compose_file)
+            with open(_cpath) as _cf:
+                _cdata = yaml.safe_load(_cf)
+            for _svc in (_cdata.get('services') or {}).values():
+                if not isinstance(_svc, dict):
+                    continue
+                for _vol in (_svc.get('volumes') or []):
+                    _src = (
+                        _vol.split(':')[0]
+                        if isinstance(_vol, str)
+                        else (_vol.get('source') or '')
+                    )
+                    if _src.startswith('./') and not _src.startswith('./.'):
+                        _abs = os.path.join(project_dir, _src[2:].rstrip('/'))
+                        if not os.path.exists(_abs):
+                            os.makedirs(_abs, exist_ok=True)
+                            _broadcast(app_id, f'📁 Répertoire bind-mount créé : {_src}')
+        except Exception as _e:
+            _broadcast(app_id, f'⚠️  Pré-création répertoires bind-mount : {_e}', 'warning')
+
     # ── 3a. Bypass nginx / certbot services (platform manages them) ───────────
     effective_compose, stripped = _strip_platform_services(compose_path, app_id)
     if stripped:
