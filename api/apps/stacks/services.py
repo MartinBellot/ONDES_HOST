@@ -282,7 +282,44 @@ def deploy_app(app_id: int):
         )
     else:
         _broadcast(app_id, f'📦 Clonage de {repo}@{branch}...')
-        # Clean dir before cloning
+        # Before wiping the project dir, preserve any bind-mounted data directories
+        # (e.g. ./data, ./data/media) so that the database and uploaded media survive
+        # a fresh clone triggered by a reinstall of Ondes HOST (DB reset → project_dir=None).
+        _saved_data: dict[str, str] = {}  # rel_subpath → tempdir holding it
+        if os.path.exists(project_dir) and _YAML_AVAILABLE:
+            _old_compose = os.path.join(project_dir, app.compose_file)
+            if os.path.exists(_old_compose):
+                try:
+                    with open(_old_compose) as _cf:
+                        _cdata = yaml.safe_load(_cf)
+                    _seen_rel: set[str] = set()
+                    for _svc in (_cdata.get('services') or {}).values():
+                        for _vol in (_svc.get('volumes') or []):
+                            _src = (
+                                _vol.split(':')[0]
+                                if isinstance(_vol, str)
+                                else (_vol.get('source') or '')
+                            )
+                            # Only preserve relative paths that look like data dirs
+                            # (start with ./ but not hidden dirs like .git)
+                            if _src.startswith('./') and not _src.startswith('./.'):
+                                _rel = _src[2:].rstrip('/')
+                                if _rel in _seen_rel:
+                                    continue
+                                # Preserve only the top-level dir (not sub-paths already covered)
+                                _top = _rel.split('/')[0]
+                                if _top in _seen_rel:
+                                    continue
+                                _seen_rel.add(_top)
+                                _abs = os.path.join(project_dir, _top)
+                                if os.path.exists(_abs):
+                                    _tmp = tempfile.mkdtemp(prefix='ondes_data_')
+                                    shutil.move(_abs, os.path.join(_tmp, _top))
+                                    _saved_data[_top] = _tmp
+                                    _broadcast(app_id, f'💾 Données préservées : {_top}/')
+                except Exception as _e:
+                    _broadcast(app_id, f'⚠️  Sauvegarde données pré-clone : {_e}', 'warning')
+
         if os.path.exists(project_dir):
             shutil.rmtree(project_dir)
         rc = _run_streaming(
@@ -290,6 +327,17 @@ def deploy_app(app_id: int):
             cwd=tempfile.gettempdir(),
             app_id=app_id,
         )
+        # Restore preserved data directories into the freshly cloned project
+        for _rel, _tmp in _saved_data.items():
+            try:
+                _dst = os.path.join(project_dir, _rel)
+                os.makedirs(os.path.dirname(_dst), exist_ok=True)
+                shutil.move(os.path.join(_tmp, _rel), _dst)
+                _broadcast(app_id, f'♻️  Données restaurées : {_rel}/')
+            except Exception as _e:
+                _broadcast(app_id, f'⚠️  Restauration {_rel}/ : {_e}', 'warning')
+            finally:
+                shutil.rmtree(_tmp, ignore_errors=True)
 
     if rc != 0:
         _set_status(app, 'error', 'Échec du clonage — vérifiez le nom du dépôt et vos permissions GitHub.')
