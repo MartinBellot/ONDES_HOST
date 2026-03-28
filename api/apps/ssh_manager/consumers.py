@@ -177,29 +177,29 @@ class DockerExecConsumer(AsyncWebsocketConsumer):
     """
 
     async def connect(self):
+        # Initialise attributes first so disconnect() is always safe to call.
+        self._exec_socket = None
+        self._reading = False
+
         # ── JWT auth from query string ────────────────────────────────────────
-        qs = self.scope.get('query_string', b'').decode()
-        token_str = ''
-        for part in qs.split('&'):
-            if part.startswith('token='):
-                token_str = part[6:]
-                break
+        from urllib.parse import parse_qs
+        qs = parse_qs(self.scope.get('query_string', b'').decode())
+        token_str = (qs.get('token', [None]) or [None])[0]
         try:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, lambda: _authenticate_token(token_str))
+            await loop.run_in_executor(None, lambda: _authenticate_token(token_str or ''))
         except Exception:
+            await self.accept()          # must accept before closing
             await self.close(code=4001)
             return
 
         self._container_id = self.scope['url_route']['kwargs']['container_id']
-        self._exec_socket = None
-        self._reading = False
         await self.accept()
         await self._start_exec()
 
     async def disconnect(self, close_code):
         self._reading = False
-        if self._exec_socket:
+        if getattr(self, '_exec_socket', None):
             try:
                 self._exec_socket.close()
             except Exception:

@@ -3536,11 +3536,13 @@ class _ConsoleTabState extends State<_ConsoleTab> {
     }
   }
 
-  void _connect() {
+  Future<void> _connect() async {
     if (_selectedContainerId == null) return;
     setState(() { _connecting = true; _lines.clear(); });
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token') ?? '';
     try {
-      _ws.connect('/ws/exec/$_selectedContainerId/');
+      _ws.connect('/ws/exec/$_selectedContainerId/?token=$token');
       _ws.stream?.listen(
         (event) {
           if (!mounted) return;
