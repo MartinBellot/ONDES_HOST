@@ -10,6 +10,7 @@ argument-hint: >
   A task description such as "add a new API endpoint to list stacks", "fix the WebSocket
   reconnection bug in the Flutter SSH screen", or "explain how the deploy pipeline works".
 tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo']
+model: "Claude Sonnet 4.6"
 ---
 
 ## Role

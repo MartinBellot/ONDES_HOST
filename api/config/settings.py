@@ -30,7 +30,6 @@ INSTALLED_APPS = [
     # Local apps
     'apps.authentication',
     'apps.docker_manager',
-    'apps.ssh_manager',
     'apps.nginx_manager',
     'apps.sites',
     'apps.github_integration',
