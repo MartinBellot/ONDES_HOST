@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/content_header.dart';
+
+// ─── Breakpoint helper ────────────────────────────────────────────────────────
+
+bool _isMobile(BuildContext context) =>
+    MediaQuery.sizeOf(context).width < 700;
 
 // ─── Data models ─────────────────────────────────────────────────────────────
 
@@ -43,11 +48,13 @@ class _ContainerNode {
         labels: Map<String, dynamic>.from(j['labels'] as Map? ?? {}),
       );
 
-  // Derive which stack this belongs to via compose label
   String get composeProject =>
       labels['com.docker.compose.project'] as String? ?? '';
   String get composeService =>
       labels['com.docker.compose.service'] as String? ?? '';
+
+  String get displayName =>
+      composeService.isNotEmpty ? composeService : name;
 
   _ContainerNode copyWith({double? cpuPct, double? memPct, double? memMb}) =>
       _ContainerNode(
@@ -61,6 +68,17 @@ class _ContainerNode {
         labels: labels,
       );
 }
+
+// ─── Layout constants ─────────────────────────────────────────────────────────
+
+const _kNodeW = 200.0;
+const _kNodeH = 130.0;
+const _kGapX = 80.0;
+const _kGapY = 100.0;
+const _kGroupPad = 40.0;
+const _kGroupGapY = 120.0;
+const _kGroupLabelH = 32.0;
+const _kCols = 3;
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -78,51 +96,45 @@ class _InfrastructureCanvasScreenState
   final _ws = WebSocketService();
   StreamSubscription? _wsSub;
 
-  // Metrics data from WS
   List<_ContainerNode> _containers = [];
   bool _wsConnected = false;
   bool _reconnectScheduled = false;
 
-  // Selected node for side panel
   _ContainerNode? _selectedNode;
 
-  // Stack data for grouping
-  List<dynamic> _stacks = [];
-
-  // Canvas pan/zoom
   final _transformController = TransformationController();
-
-  // Node positions (auto-laid out on first render)
   final Map<String, Offset> _positions = {};
-  bool _laid = false;
-
-  final _api = ApiService();
+  Set<String> _lastIds = {};
+  double _currentScale = 1.0;
+  Size _viewSize = Size.zero;
+  bool _hasFittedOnce = false;
 
   @override
   void initState() {
     super.initState();
-    _loadStacks();
     _connectMetrics();
+    _transformController.addListener(_onTransformChanged);
   }
 
   @override
   void dispose() {
+    _transformController.removeListener(_onTransformChanged);
     _wsSub?.cancel();
     _ws.disconnect();
     _transformController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadStacks() async {
-    try {
-      final s = await _api.listStacks();
-      if (mounted) setState(() => _stacks = s);
-    } catch (_) {}
+  void _onTransformChanged() {
+    final scale = _transformController.value.getMaxScaleOnAxis();
+    if ((scale - _currentScale).abs() > 0.005) {
+      setState(() => _currentScale = scale);
+    }
   }
 
   Future<void> _connectMetrics() async {
     if (!mounted) return;
-    await _wsSub?.cancel(); // cancel ghost subscription before reconnecting
+    await _wsSub?.cancel();
     _wsSub = null;
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -142,11 +154,9 @@ class _InfrastructureCanvasScreenState
             setState(() {
               _wsConnected = true;
               _containers = list;
-              // Update selected node live
               if (_selectedNode != null) {
-                final updated = list
-                    .where((c) => c.id == _selectedNode!.id)
-                    .firstOrNull;
+                final updated =
+                    list.where((c) => c.id == _selectedNode!.id).firstOrNull;
                 if (updated != null) _selectedNode = updated;
               }
             });
@@ -174,49 +184,120 @@ class _InfrastructureCanvasScreenState
     });
   }
 
-  // Auto-layout: pack nodes in a loose grid, grouping by compose project
-  void _computePositions(Size size) {
-    if (_laid && _positions.length == _containers.length) return;
-    _laid = true;
+  void _computePositions() {
+    final ids = _containers.map((c) => c.id).toSet();
+    if (ids == _lastIds) return;
+    _lastIds = ids;
+    _positions.clear();
 
-    // Group by compose project
     final groups = <String, List<_ContainerNode>>{};
     for (final c in _containers) {
       final key = c.composeProject.isEmpty ? '__standalone' : c.composeProject;
       groups.putIfAbsent(key, () => []).add(c);
     }
 
-    double groupX = 80;
-    double groupY = 80;
-    const nodeW = 180.0;
-    const nodeH = 110.0;
-    const gapX = 40.0;
-    const gapY = 80.0;
-
+    double groupY = _kGroupPad;
     for (final entry in groups.entries) {
       final nodes = entry.value;
-      double rowX = groupX;
-      double rowY = groupY + 40; // leave room for group label
+      double rowX = _kGroupPad + _kGroupPad;
+      double rowY = groupY + _kGroupLabelH + _kGroupPad;
       int col = 0;
+
       for (final n in nodes) {
-        if (!_positions.containsKey(n.id)) {
-          _positions[n.id] = Offset(rowX, rowY);
-        }
-        rowX += nodeW + gapX;
+        _positions[n.id] = Offset(rowX, rowY);
         col++;
-        if (col % 4 == 0) {
-          rowX = groupX;
-          rowY += nodeH + gapY;
+        if (col % _kCols == 0) {
+          rowX = _kGroupPad + _kGroupPad;
+          rowY += _kNodeH + _kGapY;
+        } else {
+          rowX += _kNodeW + _kGapX;
         }
       }
-      // Next group below
-      groupY = rowY + nodeH + 80;
-      groupX = 80;
+
+      final rows = (nodes.length / _kCols).ceil();
+      final groupH = _kGroupLabelH +
+          _kGroupPad * 2 +
+          rows * (_kNodeH + _kGapY) -
+          _kGapY;
+      groupY += groupH + _kGroupGapY;
     }
+  }
+
+  void _fitAll(Size viewSize) {
+    if (_positions.isEmpty) return;
+
+    double minX = double.infinity,
+        minY = double.infinity,
+        maxX = double.negativeInfinity,
+        maxY = double.negativeInfinity;
+
+    for (final pos in _positions.values) {
+      if (pos.dx < minX) minX = pos.dx;
+      if (pos.dy < minY) minY = pos.dy;
+      if (pos.dx + _kNodeW > maxX) maxX = pos.dx + _kNodeW;
+      if (pos.dy + _kNodeH > maxY) maxY = pos.dy + _kNodeH;
+    }
+
+    const margin = 60.0;
+    final contentW = maxX - minX + margin * 2;
+    final contentH = maxY - minY + margin * 2;
+    final scaleX = viewSize.width / contentW;
+    final scaleY = viewSize.height / contentH;
+    final scale = math.min(scaleX, scaleY).clamp(0.08, 1.5);
+
+    final scaledW = contentW * scale;
+    final scaledH = contentH * scale;
+    final tx = (viewSize.width - scaledW) / 2 - (minX - margin) * scale;
+    final ty = (viewSize.height - scaledH) / 2 - (minY - margin) * scale;
+
+    // Build a valid invertible 2D affine matrix via setEntry (column-major)
+    final m = Matrix4.identity();
+    m.setEntry(0, 0, scale);
+    m.setEntry(1, 1, scale);
+    m.setEntry(0, 3, tx);
+    m.setEntry(1, 3, ty);
+    _transformController.value = m;
+  }
+
+  void _zoom(double factor) {
+    final current = _transformController.value;
+    final currentScale = current.getMaxScaleOnAxis();
+    final newScale = (currentScale * factor).clamp(0.08, 4.0);
+    final ratio = newScale / currentScale;
+    final translation = current.getTranslation();
+    // Zoom toward the center of the current viewport
+    final cx = _viewSize.width / 2;
+    final cy = _viewSize.height / 2;
+    final newTx = cx - (cx - translation.x) * ratio;
+    final newTy = cy - (cy - translation.y) * ratio;
+    final m = Matrix4.identity();
+    m.setEntry(0, 0, newScale);
+    m.setEntry(1, 1, newScale);
+    m.setEntry(0, 3, newTx);
+    m.setEntry(1, 3, newTy);
+    _transformController.value = m;
+  }
+
+  void _showDetailMobile(_ContainerNode node) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      builder: (_) => _MobileDetailSheet(node: node),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final mobile = _isMobile(context);
+    // On mobile the bottom bar (height 75 + 2×20 padding = 115) is overlaid
+    // over the content navigator via Positioned — reserve space for it so
+    // the canvas is never hidden behind it.
+    final bottomBarInset = mobile
+        ? MediaQuery.of(context).padding.bottom + 115.0
+        : 0.0;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
@@ -226,119 +307,126 @@ class _InfrastructureCanvasScreenState
             containerCount: _containers.length,
             runningCount:
                 _containers.where((c) => c.status == 'running').length,
-            onRefresh: _loadStacks,
+            onRefresh: _connectMetrics,
           ),
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _buildCanvas()),
-                if (_selectedNode != null) _NodeDetailPanel(
-                  node: _selectedNode!,
-                  onClose: () => setState(() => _selectedNode = null),
-                ),
+                Expanded(child: _buildCanvas(mobile, bottomBarInset)),
+                if (!mobile && _selectedNode != null)
+                  _AnimatedDetailPanel(
+                    node: _selectedNode!,
+                    onClose: () => setState(() => _selectedNode = null),
+                  ),
               ],
             ),
           ),
+          // Push content above the mobile bottom bar
+          if (mobile) SizedBox(height: bottomBarInset),
         ],
       ),
     );
   }
 
-  Widget _buildCanvas() {
+  Widget _buildCanvas(bool mobile, double bottomBarInset) {
     if (!_wsConnected && _containers.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 36,
-              height: 36,
-              child:
-                  CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2),
-            ),
-            SizedBox(height: 16),
-            Text('Connexion au flux de métriques…',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-            SizedBox(height: 6),
-            Text('Les données arrivent en temps réel via WebSocket.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-          ],
-        ),
+      return const _EmptyState(
+        loading: true,
+        message: 'Connexion au flux de métriques…',
+        sub: 'Les données arrivent en temps réel via WebSocket.',
       );
     }
 
     if (_wsConnected && _containers.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off_outlined, size: 56, color: AppColors.textSecondary),
-            SizedBox(height: 12),
-            Text('Aucun container en cours',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-            SizedBox(height: 6),
-            Text('Déployez un stack ou démarrez des containers.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-          ],
-        ),
+      return const _EmptyState(
+        loading: false,
+        message: 'Aucun container en cours',
+        sub: 'Déployez un stack ou démarrez des containers.',
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        _computePositions(constraints.biggest);
-        return InteractiveViewer(
-          transformationController: _transformController,
-          boundaryMargin: const EdgeInsets.all(400),
-          minScale: 0.3,
-          maxScale: 2.5,
-          child: _CanvasContent(
-            containers: _containers,
-            stacks: _stacks,
-            positions: _positions,
-            selectedId: _selectedNode?.id,
-            onNodeTap: (node) => setState(() {
-              _selectedNode = _selectedNode?.id == node.id ? null : node;
-            }),
-            onNodeMove: (id, offset) {
-              setState(() => _positions[id] = offset);
-            },
-          ),
+        _computePositions();
+        _viewSize = constraints.biggest;
+        // Auto-fit once on first data arrival — never again (preserves user zoom)
+        if (!_hasFittedOnce && _positions.isNotEmpty && _viewSize != Size.zero) {
+          _hasFittedOnce = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _fitAll(_viewSize);
+          });
+        }
+
+        return Stack(
+          children: [
+            InteractiveViewer(
+              transformationController: _transformController,
+              boundaryMargin: const EdgeInsets.all(800),
+              minScale: 0.08,
+              maxScale: 4.0,
+              child: _CanvasContent(
+                containers: _containers,
+                positions: _positions,
+                selectedId: _selectedNode?.id,
+                isMobile: mobile,
+                onNodeTap: (node) {
+                  if (mobile) {
+                    _showDetailMobile(node);
+                  } else {
+                    setState(() {
+                      _selectedNode =
+                          _selectedNode?.id == node.id ? null : node;
+                    });
+                  }
+                },
+              ),
+            ),
+            Positioned(
+              right: 16,
+              bottom: 20,
+              child: _ZoomControls(
+                scale: _currentScale,
+                onZoomIn: () => _zoom(1.3),
+                onZoomOut: () => _zoom(1 / 1.3),
+                onFitAll: () => _fitAll(_viewSize),
+              ),
+            ),
+          ],
         );
       },
     );
   }
 }
 
-// ─── Canvas content (CustomPaint + positioned nodes) ─────────────────────────
+// ─── Canvas content ───────────────────────────────────────────────────────────
 
 class _CanvasContent extends StatelessWidget {
   final List<_ContainerNode> containers;
-  final List<dynamic> stacks;
   final Map<String, Offset> positions;
   final String? selectedId;
+  final bool isMobile;
   final void Function(_ContainerNode) onNodeTap;
-  final void Function(String id, Offset offset) onNodeMove;
 
   const _CanvasContent({
     required this.containers,
-    required this.stacks,
     required this.positions,
     required this.selectedId,
+    required this.isMobile,
     required this.onNodeTap,
-    required this.onNodeMove,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Calculate total canvas size based on node positions
-    double maxX = 1400, maxY = 900;
+    double maxX = 800, maxY = 600;
     for (final pos in positions.values) {
-      if (pos.dx + 220 > maxX) maxX = pos.dx + 220;
-      if (pos.dy + 160 > maxY) maxY = pos.dy + 160;
+      if (pos.dx + _kNodeW + _kGroupPad > maxX) {
+        maxX = pos.dx + _kNodeW + _kGroupPad;
+      }
+      if (pos.dy + _kNodeH + _kGroupPad > maxY) {
+        maxY = pos.dy + _kNodeH + _kGroupPad;
+      }
     }
 
-    // Group nodes by compose project for background rect grouping
     final groups = <String, List<_ContainerNode>>{};
     for (final c in containers) {
       final key = c.composeProject.isEmpty ? '' : c.composeProject;
@@ -351,7 +439,6 @@ class _CanvasContent extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // ── Group backdrop rects ────────────────────────────────────────
           ...groups.entries.map((entry) {
             final groupNodes = entry.value;
             final nodePositions = groupNodes
@@ -360,50 +447,37 @@ class _CanvasContent extends StatelessWidget {
                 .toList();
             if (nodePositions.isEmpty) return const SizedBox.shrink();
 
-            const pad = 22.0;
-            final minX =
-                nodePositions.map((p) => p.dx).reduce((a, b) => a < b ? a : b) -
-                    pad;
-            final minY =
-                nodePositions.map((p) => p.dy).reduce((a, b) => a < b ? a : b) -
-                    pad - 24;
-            final maxGX =
-                nodePositions.map((p) => p.dx).reduce((a, b) => a > b ? a : b) +
-                    180 + pad;
-            final maxGY =
-                nodePositions.map((p) => p.dy).reduce((a, b) => a > b ? a : b) +
-                    120 + pad;
+            const pad = _kGroupPad;
+            final minX = nodePositions
+                    .map((p) => p.dx)
+                    .reduce((a, b) => a < b ? a : b) -
+                pad;
+            final minY = nodePositions
+                    .map((p) => p.dy)
+                    .reduce((a, b) => a < b ? a : b) -
+                pad -
+                _kGroupLabelH;
+            final maxGX = nodePositions
+                    .map((p) => p.dx)
+                    .reduce((a, b) => a > b ? a : b) +
+                _kNodeW +
+                pad;
+            final maxGY = nodePositions
+                    .map((p) => p.dy)
+                    .reduce((a, b) => a > b ? a : b) +
+                _kNodeH +
+                pad;
 
             return Positioned(
               left: minX,
               top: minY,
-              child: Container(
+              child: _GroupBackdrop(
+                label: entry.key,
                 width: maxGX - minX,
                 height: maxGY - minY,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.03),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: AppColors.accent.withValues(alpha: 0.12),
-                      width: 1),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  child: Text(
-                    entry.key,
-                    style: const TextStyle(
-                      color: AppColors.accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
               ),
             );
           }),
-
-          // ── Container nodes ─────────────────────────────────────────────
           ...containers.map((node) {
             final pos = positions[node.id] ?? const Offset(40, 40);
             return Positioned(
@@ -411,9 +485,7 @@ class _CanvasContent extends StatelessWidget {
               top: pos.dy,
               child: GestureDetector(
                 onTap: () => onNodeTap(node),
-                onPanUpdate: (d) {
-                  onNodeMove(node.id, pos + d.delta);
-                },
+                behavior: HitTestBehavior.opaque,
                 child: _ContainerNodeCard(
                   node: node,
                   isSelected: selectedId == node.id,
@@ -427,9 +499,73 @@ class _CanvasContent extends StatelessWidget {
   }
 }
 
+// ─── Group backdrop ───────────────────────────────────────────────────────────
+
+class _GroupBackdrop extends StatelessWidget {
+  final String label;
+  final double width;
+  final double height;
+
+  const _GroupBackdrop({
+    required this.label,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.accent.withValues(alpha: 0.18),
+                width: 1.5,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 10,
+            left: 14,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.accent.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Node card ────────────────────────────────────────────────────────────────
 
-class _ContainerNodeCard extends StatelessWidget {
+class _ContainerNodeCard extends StatefulWidget {
   final _ContainerNode node;
   final bool isSelected;
 
@@ -438,8 +574,35 @@ class _ContainerNodeCard extends StatelessWidget {
     required this.isSelected,
   });
 
+  @override
+  State<_ContainerNodeCard> createState() => _ContainerNodeCardState();
+}
+
+class _ContainerNodeCardState extends State<_ContainerNodeCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+  late final Animation<double> _pulseAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
   Color get _statusColor {
-    switch (node.status) {
+    switch (widget.node.status) {
       case 'running':
         return AppColors.accentGreen;
       case 'exited':
@@ -452,31 +615,66 @@ class _ContainerNodeCard extends StatelessWidget {
     }
   }
 
+  IconData get _imageIcon {
+    final img = widget.node.image.toLowerCase();
+    if (img.contains('nginx') ||
+        img.contains('caddy') ||
+        img.contains('traefik')) {
+      return Icons.language;
+    } else if (img.contains('postgres') ||
+        img.contains('mysql') ||
+        img.contains('mariadb')) {
+      return Icons.storage;
+    } else if (img.contains('redis') || img.contains('memcach')) {
+      return Icons.bolt;
+    } else if (img.contains('mongo')) {
+      return Icons.data_object;
+    } else if (img.contains('python') ||
+        img.contains('django') ||
+        img.contains('flask') ||
+        img.contains('fastapi')) {
+      return Icons.code;
+    } else if (img.contains('node') ||
+        img.contains('next') ||
+        img.contains('nuxt')) {
+      return Icons.javascript;
+    } else if (img.contains('flutter') || img.contains('dart')) {
+      return Icons.flutter_dash;
+    } else if (img.contains('rabbit') || img.contains('kafka')) {
+      return Icons.swap_horiz;
+    }
+    return Icons.widgets_outlined;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final node = widget.node;
     final cpuColor = node.cpuPct > 80
         ? AppColors.accentRed
         : node.cpuPct > 40
             ? AppColors.accentYellow
             : AppColors.accentGreen;
 
+    final isRunning = node.status == 'running';
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: 180,
-      padding: const EdgeInsets.all(12),
+      width: _kNodeW,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected
+          color: widget.isSelected
               ? AppColors.accent
-              : _statusColor.withValues(alpha: 0.35),
-          width: isSelected ? 2 : 1,
+              : _statusColor.withValues(alpha: 0.4),
+          width: widget.isSelected ? 2 : 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: _statusColor.withValues(alpha: 0.12),
-            blurRadius: 14,
+            color: (widget.isSelected ? AppColors.accent : _statusColor)
+                .withValues(alpha: 0.18),
+            blurRadius: 18,
             spreadRadius: 0,
           ),
         ],
@@ -485,16 +683,22 @@ class _ContainerNodeCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status dot + name
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _StatusDot(color: _statusColor),
-              const SizedBox(width: 7),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(_imageIcon, size: 15, color: _statusColor),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  node.composeService.isNotEmpty
-                      ? node.composeService
-                      : node.name,
+                  node.displayName,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w600,
@@ -503,10 +707,32 @@ class _ContainerNodeCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 4),
+              if (isRunning)
+                AnimatedBuilder(
+                  animation: _pulseAnim,
+                  builder: (_, __) => Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.accentGreen
+                          .withValues(alpha: _pulseAnim.value),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _statusColor,
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 4),
-          // Image
+          const SizedBox(height: 6),
           Text(
             node.image.split(':').first.split('/').last,
             style: const TextStyle(
@@ -516,21 +742,36 @@ class _ContainerNodeCard extends StatelessWidget {
             ),
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 10),
-          // CPU bar
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              node.status.toUpperCase(),
+              style: TextStyle(
+                color: _statusColor,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           _MiniBar(
             label: 'CPU',
             value: node.cpuPct / 100,
             color: cpuColor,
             text: '${node.cpuPct.toStringAsFixed(1)}%',
           ),
-          const SizedBox(height: 6),
-          // Memory bar
+          const SizedBox(height: 7),
           _MiniBar(
             label: 'MEM',
             value: node.memPct / 100,
             color: AppColors.accent,
-            text: '${node.memMb.toStringAsFixed(0)} MB',
+            text: '${node.memMb.toStringAsFixed(0)}M',
           ),
         ],
       ),
@@ -538,21 +779,9 @@ class _ContainerNodeCard extends StatelessWidget {
   }
 }
 
-class _StatusDot extends StatelessWidget {
-  final Color color;
-  const _StatusDot({required this.color});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-      );
-}
-
 class _MiniBar extends StatelessWidget {
   final String label;
-  final double value; // 0..1
+  final double value;
   final Color color;
   final String text;
 
@@ -568,7 +797,7 @@ class _MiniBar extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 28,
+          width: 30,
           child: Text(label,
               style: const TextStyle(
                 color: AppColors.textMuted,
@@ -579,12 +808,12 @@ class _MiniBar extends StatelessWidget {
         ),
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               value: value.clamp(0.0, 1.0),
               backgroundColor: AppColors.border,
               valueColor: AlwaysStoppedAnimation(color),
-              minHeight: 4,
+              minHeight: 5,
             ),
           ),
         ),
@@ -596,6 +825,90 @@ class _MiniBar extends StatelessWidget {
               fontFamily: 'monospace',
             )),
       ],
+    );
+  }
+}
+
+// ─── Zoom controls overlay ────────────────────────────────────────────────────
+
+class _ZoomControls extends StatelessWidget {
+  final double scale;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onFitAll;
+
+  const _ZoomControls({
+    required this.scale,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onFitAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ZoomBtn(icon: Icons.add, tooltip: 'Zoomer', onTap: onZoomIn),
+          Container(height: 1, color: AppColors.border),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+            child: Text(
+              '${(scale * 100).round()}%',
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 10,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Container(height: 1, color: AppColors.border),
+          _ZoomBtn(icon: Icons.remove, tooltip: 'Dézoomer', onTap: onZoomOut),
+          Container(height: 1, color: AppColors.border),
+          _ZoomBtn(
+              icon: Icons.fit_screen, tooltip: 'Tout voir', onTap: onFitAll),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZoomBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ZoomBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 16, color: AppColors.textSecondary),
+        ),
+      ),
     );
   }
 }
@@ -617,10 +930,12 @@ class _CanvasHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = _isMobile(context);
     return ContentHeader(
       title: 'Infrastructure Canvas',
       actions: [
-        Container(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
           width: 7,
           height: 7,
           decoration: BoxDecoration(
@@ -637,35 +952,130 @@ class _CanvasHeader extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        if (wsConnected) ...[
+        if (wsConnected && !mobile) ...[
           const SizedBox(width: 16),
           Text(
-            '$runningCount / $containerCount containers actifs',
+            '$runningCount / $containerCount actifs',
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,
             ),
           ),
         ],
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         Tooltip(
-          message: 'Rafraîchir les stacks',
+          message: 'Rafraîchir',
           child: IconButton(
             icon: const Icon(Icons.refresh,
                 size: 18, color: AppColors.textSecondary),
             onPressed: onRefresh,
           ),
         ),
-        const Tooltip(
-          message: 'Scroll pour zoomer · Drag pour déplacer',
-          child: Icon(Icons.zoom_in, size: 18, color: AppColors.textMuted),
-        ),
+        if (!mobile)
+          const Tooltip(
+            message: 'Scroll pour zoomer · Drag pour déplacer',
+            child:
+                Icon(Icons.help_outline, size: 16, color: AppColors.textMuted),
+          ),
       ],
     );
   }
 }
 
-// ─── Node detail side panel ───────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+class _EmptyState extends StatelessWidget {
+  final bool loading;
+  final String message;
+  final String sub;
+
+  const _EmptyState({
+    required this.loading,
+    required this.message,
+    required this.sub,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (loading)
+            const SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                  color: AppColors.accent, strokeWidth: 2),
+            )
+          else
+            const Icon(Icons.cloud_off_outlined,
+                size: 56, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          Text(message,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 15)),
+          const SizedBox(height: 6),
+          Text(sub,
+              style:
+                  const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Animated desktop detail panel ───────────────────────────────────────────
+
+class _AnimatedDetailPanel extends StatefulWidget {
+  final _ContainerNode node;
+  final VoidCallback onClose;
+
+  const _AnimatedDetailPanel({required this.node, required this.onClose});
+
+  @override
+  State<_AnimatedDetailPanel> createState() => _AnimatedDetailPanelState();
+}
+
+class _AnimatedDetailPanelState extends State<_AnimatedDetailPanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 220));
+    _slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SlideTransition(
+      position: _slide,
+      child: FadeTransition(
+        opacity: _fade,
+        child: _NodeDetailPanel(
+          node: widget.node,
+          onClose: widget.onClose,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Node detail panel (desktop) ─────────────────────────────────────────────
 
 class _NodeDetailPanel extends StatelessWidget {
   final _ContainerNode node;
@@ -688,7 +1098,7 @@ class _NodeDetailPanel extends StatelessWidget {
             : AppColors.accentYellow;
 
     return Container(
-      width: 280,
+      width: 290,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(left: BorderSide(color: AppColors.border)),
@@ -696,7 +1106,6 @@ class _NodeDetailPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
             decoration: const BoxDecoration(
@@ -715,9 +1124,7 @@ class _NodeDetailPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    node.composeService.isNotEmpty
-                        ? node.composeService
-                        : node.name,
+                    node.displayName,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
@@ -735,72 +1142,177 @@ class _NodeDetailPanel extends StatelessWidget {
               ],
             ),
           ),
-          // Body
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DetailRow('ID', node.id, mono: true),
-                  _DetailRow('Nom complet', node.name),
-                  _DetailRow('Image', node.image, mono: true),
-                  _DetailRow('Statut', node.status),
-                  if (node.composeProject.isNotEmpty)
-                    _DetailRow('Stack', node.composeProject),
-                  const SizedBox(height: 16),
-                  // Big metric tiles
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _BigMetricTile(
-                          label: 'CPU',
-                          value: '${node.cpuPct.toStringAsFixed(1)}%',
-                          color: cpuColor,
-                          progress: node.cpuPct / 100,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _BigMetricTile(
-                          label: 'Mémoire',
-                          value: '${node.memMb.toStringAsFixed(0)} MB',
-                          color: AppColors.accent,
-                          progress: node.memPct / 100,
-                          subtitle:
-                              '${node.memPct.toStringAsFixed(1)}% du lim.',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (node.labels.isNotEmpty) ...[
-                    const Text(
-                      'LABELS',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...node.labels.entries
-                        .where(
-                            (e) => e.key.startsWith('com.docker.compose'))
-                        .map((e) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: _DetailRow(
-                                e.key.split('.').last,
-                                e.value.toString(),
-                                mono: true,
-                              ),
-                            )),
-                  ],
-                ],
-              ),
+            child: _DetailPanelBody(node: node, cpuColor: cpuColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Mobile detail bottom sheet ───────────────────────────────────────────────
+
+class _MobileDetailSheet extends StatelessWidget {
+  final _ContainerNode node;
+
+  const _MobileDetailSheet({required this.node});
+
+  @override
+  Widget build(BuildContext context) {
+    final cpuColor = node.cpuPct > 80
+        ? AppColors.accentRed
+        : node.cpuPct > 40
+            ? AppColors.accentYellow
+            : AppColors.accentGreen;
+
+    final statusColor = node.status == 'running'
+        ? AppColors.accentGreen
+        : node.status == 'exited' || node.status == 'dead'
+            ? AppColors.accentRed
+            : AppColors.accentYellow;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.3,
+      maxChildSize: 0.92,
+      builder: (context, scrollCtrl) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border(
+              top: BorderSide(color: AppColors.border),
+              left: BorderSide(color: AppColors.border),
+              right: BorderSide(color: AppColors.border),
             ),
           ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                          shape: BoxShape.circle, color: statusColor),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        node.displayName,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close,
+                          color: AppColors.textSecondary),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: AppColors.border, height: 1),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.all(20),
+                  child: _DetailPanelBody(node: node, cpuColor: cpuColor),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Shared detail body ───────────────────────────────────────────────────────
+
+class _DetailPanelBody extends StatelessWidget {
+  final _ContainerNode node;
+  final Color cpuColor;
+
+  const _DetailPanelBody({required this.node, required this.cpuColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _DetailRow('ID', node.id, mono: true),
+          _DetailRow('Nom', node.name),
+          _DetailRow('Image', node.image, mono: true),
+          _DetailRow('Statut', node.status),
+          if (node.composeProject.isNotEmpty)
+            _DetailRow('Stack', node.composeProject),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _BigMetricTile(
+                  label: 'CPU',
+                  value: '${node.cpuPct.toStringAsFixed(1)}%',
+                  color: cpuColor,
+                  progress: node.cpuPct / 100,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BigMetricTile(
+                  label: 'Mémoire',
+                  value: '${node.memMb.toStringAsFixed(0)} MB',
+                  color: AppColors.accent,
+                  progress: node.memPct / 100,
+                  subtitle: '${node.memPct.toStringAsFixed(1)}% du lim.',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (node.labels.isNotEmpty) ...[
+            const Text(
+              'LABELS',
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...node.labels.entries
+                .where((e) => e.key.startsWith('com.docker.compose'))
+                .map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: _DetailRow(
+                        e.key.split('.').last,
+                        e.value.toString(),
+                        mono: true,
+                      ),
+                    )),
+          ],
         ],
       ),
     );
@@ -822,7 +1334,7 @@ class _DetailRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 80,
+            width: 72,
             child: Text(
               label,
               style: const TextStyle(
